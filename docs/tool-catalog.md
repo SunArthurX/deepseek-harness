@@ -21,6 +21,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\...` paths and `$env:NAME` variables. |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`, `cordis_inspect_list`, `cordis_inspect_query`, `cordis_inspect_self`, `cordis_run`, `cordis_stop`, `cordis_undefine` | `ctx.tools`, `ctx.dynamicCordisRunner` | `tool/call`, `tool/result`, `process-local dynamic package lifecycle` | - | Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes. |
+| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days. |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
@@ -29,6 +30,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
+| `@deepseek-ai/dsh-session-import` | `session_import` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `the Claude Code / Codex stores on disk` | `tool/call`, `tool/result`, `session-import/source in the NEW imported session` | - | Imports external coding-agent conversations (Claude Code, Codex) as new, continuable harness sessions. `list` enumerates discovered source stores; `import` translates one conversation into a durable session written through the composed persistence backend. Import is idempotent (up-to-date / conflict) and never overwrites an existing target; redaction is default-on. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`, `ctx.agents`, `ctx.skills` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
@@ -500,6 +502,1005 @@ Permanently remove a dynamic Plugin owned by the current Session. If it is runni
 Source: [`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)
 
 Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes.
+
+<a id="deepseek-aidsh-tool-crm"></a>
+
+## `@deepseek-ai/dsh-tool-crm`
+
+### `crm_advisor_list`
+
+List the advisory team. Use it to resolve advisorId values for client assignment, interactions, and tasks.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "active": {
+      "type": "boolean",
+      "description": "Restrict to this availability when provided."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_advisor_register`
+
+Register one advisor on the team. A practicing license number, when provided, must be unique.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Advisor display name."
+    },
+    "team": {
+      "type": "string",
+      "description": "Team name."
+    },
+    "licenseNo": {
+      "type": "string",
+      "description": "Practicing license number (执业编号); unique among advisors."
+    },
+    "specialties": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "description": "Whether the advisor takes new assignments; defaults to true."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_create`
+
+Create one client record in the advisory CRM. Use after intake (form, referral, first contact) before any interaction, consultation, or opportunity can reference the client.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Client display name — an individual or an institution name."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Retail individual or institutional client.",
+      "enum": [
+        "individual",
+        "institution"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "Funnel stage; defaults to lead.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor id (see crm_advisor_list)."
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive. Provide when intake completed the questionnaire; the assessment expires after the configured validity.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "description": "Questionnaire score 1–100 recorded with the first assessment."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Segmentation tags, e.g. 高净值, 基金定投, 转介绍.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Mobile phone number."
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address."
+    },
+    "wechat": {
+      "type": "string",
+      "description": "WeChat handle."
+    },
+    "region": {
+      "type": "string",
+      "description": "Region or city."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "Annual income in the book currency."
+    },
+    "liquidAssets": {
+      "type": "number",
+      "description": "Liquid assets in the book currency."
+    },
+    "totalAum": {
+      "type": "number",
+      "description": "Assets under management this client brings."
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code of the monetary fields (default CNY)."
+    }
+  },
+  "required": [
+    "name",
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_get`
+
+Read the full 360° view of one client: profile, last 10 interactions, the 10 soonest-due open tasks, live and recently-won opportunities, last 10 consultations, and risk-assessment validity. Use it to prepare before any client conversation.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client id from crm_client_search or crm_client_create."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_search`
+
+Search the client book. Filters combine with AND; the free-text query matches name, tags, and contact fields case-insensitively. Use before any client-addressed action to resolve a clientId.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Free-text match against name, tags, phone, email, wechat, region."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Exact individual/institution filter.",
+      "enum": [
+        "individual",
+        "institution"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "Exact lifecycle filter.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Exact owning-advisor filter."
+    },
+    "tag": {
+      "type": "string",
+      "description": "Exact tag filter."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 100)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_update`
+
+Patch one client record: absent fields keep their values. Supplying tolerance re-runs the risk assessment now and restarts its validity window; contact and financial fields merge over the stored values.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client to update."
+    },
+    "name": {
+      "type": "string",
+      "description": "New display name."
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "New funnel stage.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "New owning advisor id."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Replacement tag set.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Replacement free-text notes."
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive. Supplying it re-assesses the client now.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "description": "Questionnaire score 1–100 recorded with the re-assessment."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Mobile phone number."
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address."
+    },
+    "wechat": {
+      "type": "string",
+      "description": "WeChat handle."
+    },
+    "region": {
+      "type": "string",
+      "description": "Region or city."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "Annual income in the book currency."
+    },
+    "liquidAssets": {
+      "type": "number",
+      "description": "Liquid assets in the book currency."
+    },
+    "totalAum": {
+      "type": "number",
+      "description": "Assets under management this client brings."
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code of the monetary fields (default CNY)."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_consultation_record`
+
+Record one formal advisory consultation with its suitability audit. Every discussed product is evaluated against the client's current risk profile (tolerance level ≥ product risk and unexpired assessment) and the verdict is stored with the record. Record the consultation even when a verdict is unfavorable — the audit trail must be complete; surface blocked verdicts to the client instead of recommending.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client advised."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "products": {
+      "type": "array",
+      "description": "Products discussed, each with its documented risk level R1–R5. Every entry gets a suitability verdict against the client's current risk profile.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Product display name."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Product category.",
+            "enum": [
+              "fund",
+              "insurance",
+              "structured",
+              "retirement",
+              "education",
+              "tax",
+              "advisory_fee"
+            ]
+          },
+          "riskLevel": {
+            "type": "string",
+            "description": "Product risk level: R1 low, R2 medium-low, R3 medium, R4 medium-high, R5 high.",
+            "enum": [
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "riskLevel"
+        ]
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Recommendations given.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "occurredAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp; defaults to now."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Advising advisor; defaults to the client's owner."
+    },
+    "interactionId": {
+      "type": "string",
+      "description": "The interaction this consultation extends, when it extends one."
+    },
+    "followUpRequired": {
+      "type": "boolean",
+      "description": "Whether a follow-up is required; defaults to false."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Free-text summary."
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "Owning harness session when this agent mediated the consultation."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_interaction_list`
+
+List client interactions, newest first.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Restrict to one channel.",
+      "enum": [
+        "consultation",
+        "call",
+        "wechat",
+        "meeting",
+        "email",
+        "report_review"
+      ]
+    },
+    "topic": {
+      "type": "string",
+      "description": "Restrict to interactions covering one advisory topic.",
+      "enum": [
+        "asset_allocation",
+        "retirement",
+        "tax",
+        "insurance",
+        "education",
+        "market_outlook",
+        "product_review",
+        "portfolio_rebalance",
+        "other"
+      ]
+    },
+    "since": {
+      "type": "string",
+      "description": "Only interactions at or after this ISO 8601 timestamp."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_interaction_log`
+
+Log one client touchpoint (call, wechat, meeting, email, report review, or consultation) right after it happens. The advisor defaults to the client's owner.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client touched."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Channel; defaults to consultation.",
+      "enum": [
+        "consultation",
+        "call",
+        "wechat",
+        "meeting",
+        "email",
+        "report_review"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "description": "One concise line about what was discussed."
+    },
+    "occurredAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp; defaults to now."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Handling advisor; defaults to the client's owner."
+    },
+    "durationMin": {
+      "type": "integer",
+      "description": "Duration in minutes when known."
+    },
+    "sentiment": {
+      "type": "string",
+      "description": "Recorded client tone.",
+      "enum": [
+        "positive",
+        "neutral",
+        "negative"
+      ]
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "nextStep": {
+      "type": "string",
+      "description": "Agreed next step, when one was set."
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "Owning harness session when this agent mediated the interaction."
+    }
+  },
+  "required": [
+    "clientId",
+    "summary"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_create`
+
+Open one deal in the pipeline: a client, a product category, and the deal value. Probability defaults to the opening stage's value (10% at new).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client pursued."
+    },
+    "productKind": {
+      "type": "string",
+      "description": "Product category.",
+      "enum": [
+        "fund",
+        "insurance",
+        "structured",
+        "retirement",
+        "education",
+        "tax",
+        "advisory_fee"
+      ]
+    },
+    "amount": {
+      "type": "number",
+      "description": "Deal value; positive."
+    },
+    "productName": {
+      "type": "string",
+      "description": "Specific product name when known."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor; defaults to the client's owner."
+    },
+    "stage": {
+      "type": "string",
+      "description": "Opening stage; defaults to new. Terminal stages are reached only through crm_opportunity_move.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation"
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code; defaults to CNY."
+    },
+    "probability": {
+      "type": "integer",
+      "description": "Win probability 0–100; defaults to the stage's value."
+    },
+    "expectedCloseAt": {
+      "type": "string",
+      "description": "Planned close time, ISO 8601."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    }
+  },
+  "required": [
+    "clientId",
+    "productKind",
+    "amount"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_list`
+
+List pipeline deals, newest-updated first.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "stage": {
+      "type": "string",
+      "description": "Restrict to one stage.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost",
+        "abandoned"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_move`
+
+Move one deal through the pipeline. won/lost/abandoned are terminal; lost and abandoned require a closeReason; entering a terminal stage stamps the close time and forces its probability (won 100, lost/abandoned 0).
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "opportunityId": {
+      "type": "string",
+      "description": "Deal to move."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target stage.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost",
+        "abandoned"
+      ]
+    },
+    "probability": {
+      "type": "integer",
+      "description": "Win probability 0–100 for a non-terminal move; ignored entering a terminal stage."
+    },
+    "closeReason": {
+      "type": "string",
+      "description": "Why the deal closed or was abandoned; required entering lost or abandoned."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes update."
+    }
+  },
+  "required": [
+    "opportunityId",
+    "to"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_report`
+
+Run one CRM report. pipeline: per-stage counts, amounts, weighted forecast, and win rate. book: client distribution by lifecycle and risk tolerance, AUM totals, and risk assessments expiring within 30 days or already expired. tasks: open-task load per advisor with overdue counts and the next due items. suitability: the flattened audit trail of product verdicts from recorded consultations.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "description": "Which report to run.",
+      "enum": [
+        "pipeline",
+        "book",
+        "tasks",
+        "suitability"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict the report to one advisor."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum suitability entries (default 50, max 200; suitability only)."
+    }
+  },
+  "required": [
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_cancel`
+
+Cancel one open task; cancelled tasks stay in the record for audit.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to cancel."
+    }
+  },
+  "required": [
+    "taskId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_complete`
+
+Mark one open task done, stamping its completion time.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to complete."
+    }
+  },
+  "required": [
+    "taskId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_create`
+
+Schedule one follow-up task. The owning advisor resolves from the explicit field, else the named client's owner, else the named opportunity's owner.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "One-line description of the work."
+    },
+    "dueAt": {
+      "type": "string",
+      "description": "Due time, ISO 8601."
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Client concerned, when task-specific."
+    },
+    "opportunityId": {
+      "type": "string",
+      "description": "Opportunity concerned, when deal-specific."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Advisor who owes the work; defaults to the client or opportunity owner."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Task category; defaults to follow_up.",
+      "enum": [
+        "follow_up",
+        "meeting_prep",
+        "risk_review",
+        "compliance_check",
+        "document_delivery",
+        "report_delivery",
+        "client_care"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "description": "Urgency; defaults to normal.",
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    }
+  },
+  "required": [
+    "title",
+    "dueAt"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_list`
+
+List tasks by due time, soonest first. Without a status filter only open tasks are returned; overdue=true selects open tasks past due. Each row carries the derived overdue flag.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle filter; omitting it lists open tasks only.",
+      "enum": [
+        "open",
+        "done",
+        "cancelled"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "description": "Restrict to one task category.",
+      "enum": [
+        "follow_up",
+        "meeting_prep",
+        "risk_review",
+        "compliance_check",
+        "document_delivery",
+        "report_delivery",
+        "client_care"
+      ]
+    },
+    "overdue": {
+      "type": "boolean",
+      "description": "Only open tasks past due now."
+    },
+    "dueBefore": {
+      "type": "string",
+      "description": "Only tasks due at or before this ISO 8601 timestamp."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_reschedule`
+
+Move one open task's due time.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to reschedule."
+    },
+    "dueAt": {
+      "type": "string",
+      "description": "New due time, ISO 8601."
+    }
+  },
+  "required": [
+    "taskId",
+    "dueAt"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 
@@ -1193,6 +2194,61 @@ List every active reminder in the current session in creation order, including i
 Source: [`packages/schedule/schedule/src/tools.ts`](../packages/schedule/schedule/src/tools.ts)
 
 Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier.
+
+<a id="deepseek-aidsh-session-import"></a>
+
+## `@deepseek-ai/dsh-session-import`
+
+### `session_import`
+
+Discover conversations recorded by other coding agents (Claude Code, Codex, ZCode) on this machine and import one into this harness as a fully continuable session. Use `list` to enumerate sources, then `import` with the chosen provider and sourceId. Importing is idempotent: an unchanged source reports up-to-date, and an existing target is never overwritten.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "`list` enumerates discoverable external conversations; `import` converts one into a harness session.",
+      "enum": [
+        "list",
+        "import"
+      ]
+    },
+    "provider": {
+      "type": "string",
+      "description": "The source agent. Optional for `list` (scans every supported store); required for `import`.",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    },
+    "sourceId": {
+      "type": "string",
+      "description": "The external conversation id from a previous `list`. Required for `import`."
+    },
+    "force": {
+      "type": "boolean",
+      "description": "For `import` with an existing target: re-import the current source into a fresh versioned session instead of reporting conflict."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "For `list`: at most this many rows, newest first. Omit for every discovered conversation."
+    },
+    "query": {
+      "type": "string",
+      "description": "For `list`: keep only conversations whose transcript contains this substring (case-insensitive)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+Source: [`packages/import/session-import/src/tool.ts`](../packages/import/session-import/src/tool.ts)
+
+Imports external coding-agent conversations (Claude Code, Codex) as new, continuable harness sessions. `list` enumerates discovered source stores; `import` translates one conversation into a durable session written through the composed persistence backend. Import is idempotent (up-to-date / conflict) and never overwrites an existing target; redaction is default-on.
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 

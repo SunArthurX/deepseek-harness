@@ -677,6 +677,25 @@ Types: [SessionTitleLlmRequestEventData](subsystems/session-title.md)
 
 Source: [`packages/session/session-title-llm/src/index.ts:43`](../packages/session/session-title-llm/src/index.ts)
 
+### `session-import/*`
+
+<a id="session-importsource--log-only"></a>
+
+#### `session-import/source` — log-only
+
+```ts persistence-catalog
+/**
+ * Log-only provenance for a session whose history was imported from an
+ * external code agent's store. Exactly one per imported session, at seq 1;
+ * `redactions` counts credential replacements applied before the log was
+ * written and `skippedRecords` counts source records that were dropped.
+ * @dshScopeScan unsupported
+ */
+'session-import/source': SessionImportSourceEventData
+```
+
+Source: [`packages/import/session-import/src/types.ts:45`](../packages/import/session-import/src/types.ts)
+
 ### `session-log-deepseek/*`
 
 <a id="session-log-deepseekdelivery-accepted--log-only"></a>

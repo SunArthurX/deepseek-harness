@@ -739,6 +739,92 @@ Types: [SessionHeader](persistence.zh.md) · [SessionId](core.zh.md) · [Session
 
 Source: [`packages/api/session-controller/src/index.ts`](../../packages/api/session-controller/src/index.ts)
 
+<a id="ctxsessionimport--sessionimportservice"></a>
+
+### `ctx.sessionImport` — `SessionImportService`
+
+The `session-import` service (`ctx.sessionImport`).
+
+```ts cordis-catalog
+/**
+ * List the source conversations a provider's store currently holds, marking
+ * the ones this harness already imported. Rows sort most recently modified
+ * first, so a `limit` keeps the freshest conversations.
+ * @param options - the provider to scan (omitted scans every supported store) and an optional row cap.
+ * @returns at most `limit` rows (default all), most recently modified first.
+ */
+async listSources(options: { readonly provider?: ExternalProviderId readonly limit?: number /** Raw substring filter: keeps conversations whose transcript contains it (case-insensitive). */ readonly query?: string } = {}): Promise<SourceListing[]>
+
+/**
+ * Explicit resolve step for one import: locate the source, name the target,
+ * and freeze the translation spec.
+ * @param request - the provider, source id, and optional explicit target id.
+ * @returns the resolved spec.
+ * @throws {@link SourceNotFoundError} when the store has no such conversation.
+ */
+async resolve(request: { readonly provider: ExternalProviderId readonly sourceId: string readonly targetId?: string }): Promise<ImportSpec>
+
+/**
+ * Import one external conversation as a new, continuable harness session.
+ * The import writes the translated log straight to the composed persistence
+ * backend — it never occupies the live store — so the session resumes through
+ * the ordinary path in this or any later process. Idempotent: importing an
+ * unchanged source again reports `up-to-date`; importing a changed source
+ * over the deterministic target reports `conflict` rather than silently
+ * duplicating or diverging history.
+ * @param request - the provider, source id, and optional explicit target id.
+ * @returns the outcome, including the target session id.
+ * @throws {@link SourceNotFoundError} when the store has no such conversation.
+ * @throws {@link TargetCollisionError} when the target id is taken by anything else.
+ * @throws when no persistence backend is composed, or the source is unreadable, empty, or names no model.
+ */
+async importSource(request: { readonly provider: ExternalProviderId readonly sourceId: string readonly targetId?: string /** On conflict, re-import the current source into a fresh versioned target instead of skipping. */ readonly force?: boolean }): Promise<ImportOutcome>
+
+/**
+ * Render one source conversation as a capped, read-only chat preview:
+ * user and assistant messages with the tool calls each assistant turn made.
+ * Tool results stay summarized in the counts — they are working output,
+ * not conversation. Parsing rules (budget, noise filtering, reasoning) are
+ * exactly those an import would apply.
+ * @param request - the provider and source id.
+ * @param options - cap for the returned message list (default 120).
+ * @returns the preview, capped for display with whole-conversation counts.
+ * @throws {@link SourceNotFoundError} when the store has no such conversation.
+ * @throws when the source is unreadable, empty, or names no model.
+ */
+async previewSource( request: { readonly provider: ExternalProviderId; readonly sourceId: string }, options: { readonly maxMessages?: number } = {}, ): Promise<SourcePreview>
+
+/**
+ * Batch-sync every discovered conversation (or one provider's) into durable
+ * harness sessions: new conversations import, unchanged ones report
+ * `up-to-date` and skip, and a conversation whose source changed under an
+ * existing deterministic target reports `conflict` and skips — sync never
+ * overwrites and never duplicates. The new-import quota (`limit`, default
+ * 200, `0` = unlimited) counts only fresh imports; up-to-date skips never
+ * consume it, so a bounded sync still reaches new conversations.
+ * @param options - the provider to sync (omitted syncs every store) and a
+ *   new-import cap.
+ * @returns per-conversation results plus rolled-up counts.
+ */
+async syncAll(options: { readonly provider?: ExternalProviderId; readonly limit?: number } = {}): Promise<SyncOutcome>
+
+/**
+ * Send one prompt to an imported session, creating its agent first when the
+ * session is not live in this process. The agent then runs the ordinary
+ * loop; consumers observe progress on `session/event` as with any session.
+ * @param sessionId - the imported session's id.
+ * @param prompt - the user prompt that continues the imported conversation.
+ * @param options - per-agent options (the model route the continued requests use).
+ * @returns the id of the session now being driven.
+ * @throws when no session with that id exists, the log is not an import, or no agent factory is registered.
+ */
+async continueSession( sessionId: string, prompt: string, options: { readonly agentOptions?: AgentOptions } = {}, ): Promise<{ sessionId: SessionId }>
+```
+
+Types: [AgentOptions](core.zh.md) · [SessionId](core.zh.md)
+
+Source: [`packages/import/session-import/src/index.ts`](../../packages/import/session-import/src/index.ts)
+
 <a id="ctxsessions--sessionstore"></a>
 
 ### `ctx.sessions` — `SessionStore`

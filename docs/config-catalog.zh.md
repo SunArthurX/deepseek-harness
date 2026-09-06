@@ -588,6 +588,25 @@ export interface Config {
 
 来源：[`packages/credentials/credentials-local/src/index.ts:64`](../packages/credentials/credentials-local/src/index.ts)
 
+<a id="deepseek-aidsh-crm"></a>
+
+## `@deepseek-ai/dsh-crm`
+
+依赖：`storageDomain`
+
+```ts config-catalog
+/** Required deployment policy for the CRM domain. */
+export interface Config {
+  /**
+   * How many days one risk assessment stays valid; re-assessment resets the
+   * window and suitability treats an expired assessment as blocking.
+   */
+  readonly riskProfileValidityDays: number
+}
+```
+
+Source: [`packages/crm/crm/src/index.ts:230`](../packages/crm/crm/src/index.ts)
+
 <a id="deepseek-aidsh-e2b"></a>
 
 ## `@deepseek-ai/dsh-e2b`
@@ -1809,6 +1828,46 @@ export interface JsonRpcConfig {
 依赖：`Readable`（`node:stream`）· `Writable`（`node:stream`）
 
 来源：[`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
+
+<a id="deepseek-aidsh-session-import"></a>
+
+## `@deepseek-ai/dsh-session-import`
+
+Requires: `sessions` · `tools`
+
+```ts config-catalog
+/** Deployment configuration for the session-import plugin. */
+export interface Config {
+  /** Claude home directory; defaults to `~/.claude` when absent or empty. */
+  claudeHome?: string
+  /** Codex home directory; defaults to `~/.codex` when absent or empty. */
+  codexHome?: string
+  /** ZCode home directory; defaults to `~/.zcode` when absent or empty. */
+  zcodeHome?: string
+  /** MiniMax home directory; defaults to `~/.minimax` when absent or empty. */
+  minimaxHome?: string
+  /** Model id recorded when a source conversation reports none. */
+  defaultModel?: string
+  /** Rejection budget for one source file, in bytes. */
+  maxFileBytes?: number
+  /** Per-tool-result text cap, in characters. */
+  maxToolResultChars?: number
+  /** Keep source reasoning text as `reasoning` blocks instead of dropping it. */
+  includeReasoning?: boolean
+  /** Replace credential-shaped substrings before they enter the durable log. */
+  redactSecrets?: boolean
+  /**
+   * Working directory stamped onto every imported session header. All imports
+   * therefore share one workspace group (named after this directory's last
+   * segment) instead of scattering across their source projects; the source
+   * project path survives in the import provenance event. Defaults to
+   * `<dsh home>/导入`. Absolute, or relative to the user's home directory.
+   */
+  importGroupHome?: string
+}
+```
+
+Source: [`packages/import/session-import/src/service.ts:17`](../packages/import/session-import/src/service.ts)
 
 <a id="deepseek-aidsh-session-log-deepseek"></a>
 
@@ -3453,6 +3512,7 @@ export interface Config {
 - `@deepseek-ai/dsh-command-goal` — 需要 `commands` · `goals`（[`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts)）
 - `@deepseek-ai/dsh-commands`（[`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts)）
 - `@deepseek-ai/dsh-cordis-client-runner`（[`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts)）
+- `@deepseek-ai/dsh-crm-console` — 需要 `webServer` · `crm`（[`packages/crm/crm-console/src/index.ts`](../packages/crm/crm-console/src/index.ts)）
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions`（[`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts)）
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team`（[`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts)）
 - `@deepseek-ai/dsh-fs-e2b` — 需要 `e2b`（[`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts)）
@@ -3466,6 +3526,7 @@ export interface Config {
 - `@deepseek-ai/dsh-schedule` — 需要 `agents` · `sessions` · `tools` · `sessionPersistence`（[`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts)）
 - `@deepseek-ai/dsh-session`（[`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts)）
 - `@deepseek-ai/dsh-session-checkpoint-policy` — 需要 `llm` · `sessionPersistence` · `sessions` · `tools`（[`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts)）
+- `@deepseek-ai/dsh-session-import-console` — 需要 `webServer` · `sessionImport`（[`packages/import/session-import-console/src/index.ts`](../packages/import/session-import-console/src/index.ts)）
 - `@deepseek-ai/dsh-session-projection`（[`packages/session/session-projection/src/index.ts`](../packages/session/session-projection/src/index.ts)）
 - `@deepseek-ai/dsh-session-stats` — 需要 `sessionProjections`（[`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts)）
 - `@deepseek-ai/dsh-skill-badge` — 需要 `skills`（[`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts)）
@@ -3476,6 +3537,7 @@ export interface Config {
 - `@deepseek-ai/dsh-tool-ask-user` — 需要 `tools` · `userInteraction`（[`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts)）
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — 需要 `tools`（[`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts)）
 - `@deepseek-ai/dsh-tool-cordis` — 需要 `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect`（[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)）
+- `@deepseek-ai/dsh-tool-crm` — 需要 `tools` · `crm` （[`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts))
 - `@deepseek-ai/dsh-tool-subagent-control` — 需要 `tools` · `subagents`（[`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts)）
 - `@deepseek-ai/dsh-user-questions`（[`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts)）
 - `@deepseek-ai/dsh-webhook` — 需要 `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry`（[`packages/webhook/webhook/src/index.ts`](../packages/webhook/webhook/src/index.ts)）

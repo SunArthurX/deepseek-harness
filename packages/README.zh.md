@@ -63,6 +63,8 @@ harness 由 `packages/` 下的 npm 包组装而成，按能力系列分组：会
 | [`extensions/`](extensions/README.zh.md) | agent 运行时自修改：实时插件/服务检查与模型所写挂载/卸载 |
 | [`hooks/`](hooks/README.zh.md) | 钩子桥接 + 共享的 Claude Code / Codex 线协议库 |
 | [`session/`](session/README.zh.md) | 持久会话数据平面：持久化 seam + 后端、投影 seam、基于日志的标题、会话上报 |
+| [`import/`](import/README.zh.md) | 外部智能体会话导入：将 Claude Code / Codex 转录变为可继续的 harness 会话 |
+| [`crm/`](crm/README.zh.md) | 投资顾问 CRM:持久客户簿、适当性审计咨询、商机管线、跟进任务 |
 | [`session-query/`](session-query/README.zh.md) | 会话检索系列：逻辑语料库、有界读取、血缘、语义过滤、SQLite 全文搜索 |
 | [`settings/`](settings/README.zh.md) | 用户设置 seam + 基于文件的提供方 |
 | [`credentials/`](credentials/README.zh.md) | 凭据引用/记录 seam + 环境变量优先于 `.env` 的提供方 + 询问人类的授权 flow |

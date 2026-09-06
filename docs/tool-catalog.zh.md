@@ -25,6 +25,7 @@
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。 |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。 |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`、`cordis_inspect_list`、`cordis_inspect_query`、`cordis_inspect_self`、`cordis_run`、`cordis_stop`、`cordis_undefine` | `ctx.tools`、`ctx.dynamicCordisRunner` | `tool/call`、`tool/result`、`process-local dynamic package lifecycle` | - | 不在任何随产品发布的树中，需要显式选择启用；动态 Package 代码可以访问真实运行时，见 .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md。该工具集注入 `@deepseek-ai/dsh-cordis-host-runner` 提供的 `ctx.dynamicCordisRunner`，后者拥有定义注册表和 vm 沙箱；组合缺少它时这些工具不会激活。运行中的 Package 在停止、undefine 或 DSH 重启前可以注册**额外的**模型可见工具；发生这类工具集变化时，系统会记录完整且有变动的请求头。 |
+| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | 投资顾问 CRM 服务之上的 18 个工具;全部业务规则(适当性、阶段状态机、引用完整性)都在 dsh-crm 中,因此模式在存储后端切换间保持稳定。服务的 `riskProfileValidityDays` 必填且无默认值,目录在此声明取值:730 天。 |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 bash 工具；部署组合提供 PTY 后端，并可覆盖面向模型的环境描述。 |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 pwsh 工具，持久 bash 工具的 Windows 对应物；部署组合提供 pwsh 方言的 PTY 后端，并可覆盖面向模型的环境描述。 |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`、`ctx.fs` | `tool/call`、`fs/observed after view presence/absence, edit absence, or successful mutation`、`tool/result` | - | 基于文件系统 seam 的独立查看／创建／唯一字面量替换／按行插入工具；可与任何 shell 或终端接口组合。 |
@@ -33,6 +34,7 @@
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`、`terminal_list`、`terminal_open`、`terminal_read`、`terminal_send`、`terminal_signal` | `ctx.tools`、`ctx.terminals`、`ctx.systemPrompt`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | 这 6 个终端工具需要选择启用，用于补充一次性 bash／文件系统工具。`terminal_send(run_in_background: true)` 会注册到 `ctx.jobs`；schema 不包含 TUI、具名按键序列、BEL、调整尺寸、自动启动和跨 agent 共享。 |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`、`get_goal`、`update_goal` | `ctx.tools`、`ctx.agents`、`ctx.goals`、`ctx.systemPrompt`、`a calling Agent in an authorized open turn` | `tool/call`、`goal/change for mutations`、`tool/result` | - | create、edit、pause 和 resume 要求直接来自人类的根权限；complete 和 blocked 也接受确切的当前 Goal Round。blocked 的默认下限是 3 个获准的 Round。 |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`、`schedule_delete`、`schedule_list` | `ctx.tools`、`ctx.sessions`、Session 持久化、未来创建的 live 根 Agent | `tool/call`、`schedule/change create or delete`、`tool/result` | - | 仅在选择启用的 Schedule 插件加载后创建的 live 根 Agent scope 内注册。版本 1 接受 after_seconds、显式绝对 at 和有界固定速率 every_seconds，并披露 session-local 交付；管理读取与变更必须通过共享的 Session 持久化 barrier。 |
+| `@deepseek-ai/dsh-session-import` | `session_import` | `ctx.tools`、`ctx.sessions`、Session 持久化、磁盘上的 Claude Code / Codex 存储 | `tool/call`、`tool/result`、`新导入会话中的 session-import/source` | - | 将其他编码智能体（Claude Code、Codex）的对话导入为新的、可继续的 harness 会话。`list` 枚举发现的来源存储；`import` 把一个对话翻译为经由组合持久化后端写入的持久会话。导入幂等（up-to-date / conflict），且从不覆盖已存在的目标；脱敏默认开启。 |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`、`ctx.lsp`、`ctx.systemPrompt` | `tool/call`、`tool/result` | - | lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，因此其模型可见 schema 在更换提供方时保持稳定。运行时要求已注册提供方，例如 `@deepseek-ai/dsh-lsp-stdio`；如果没有提供方，查询会返回结构化 `LSP_UNAVAILABLE` 错误，而不会改变 schema。 |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`、`ctx.workflowEngine`、`ctx.subagents`、`ctx.systemPrompt`、`a calling Agent (exec.agent parents every fresh round)` | `tool/call`、`tool/result`、`workflow and child session events during execution` | - | 固定的前台工作流会在每个 Round 启动一个全新的结构化子级；模型只能选择不可变目标和可选的 Round 上限。 |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`、`ctx.agents`、`ctx.skills` | `tool/call`、`tool/result`、`user/message replacement catalogs via agent.inject()` | - | - |
@@ -504,6 +506,1005 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
 来源：[`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts)
 
 不在任何随产品发布的树中，需要显式选择启用；动态 Package 代码可以访问真实运行时，见 .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md。该工具集注入 `@deepseek-ai/dsh-cordis-host-runner` 提供的 `ctx.dynamicCordisRunner`，后者拥有定义注册表和 vm 沙箱；组合缺少它时这些工具不会激活。运行中的 Package 在停止、undefine 或 DSH 重启前可以注册**额外的**模型可见工具；发生这类工具集变化时，系统会记录完整且有变动的请求头。
+
+<a id="deepseek-aidsh-tool-crm"></a>
+
+## `@deepseek-ai/dsh-tool-crm`
+
+### `crm_advisor_list`
+
+列出顾问团队。用它解析客户分配、互动与任务所需的 advisorId。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "active": {
+      "type": "boolean",
+      "description": "Restrict to this availability when provided."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_advisor_register`
+
+注册一名顾问。提供执业编号时,编号必须在顾问间唯一。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Advisor display name."
+    },
+    "team": {
+      "type": "string",
+      "description": "Team name."
+    },
+    "licenseNo": {
+      "type": "string",
+      "description": "Practicing license number (执业编号); unique among advisors."
+    },
+    "specialties": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "description": "Whether the advisor takes new assignments; defaults to true."
+    }
+  },
+  "required": [
+    "name"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_create`
+
+在顾问 CRM 中创建一条客户记录。在录入(表单、转介绍、首次接触)之后、任何互动/咨询/商机引用该客户之前使用。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Client display name — an individual or an institution name."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Retail individual or institutional client.",
+      "enum": [
+        "individual",
+        "institution"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "Funnel stage; defaults to lead.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor id (see crm_advisor_list)."
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive. Provide when intake completed the questionnaire; the assessment expires after the configured validity.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "description": "Questionnaire score 1–100 recorded with the first assessment."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Segmentation tags, e.g. 高净值, 基金定投, 转介绍.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Mobile phone number."
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address."
+    },
+    "wechat": {
+      "type": "string",
+      "description": "WeChat handle."
+    },
+    "region": {
+      "type": "string",
+      "description": "Region or city."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "Annual income in the book currency."
+    },
+    "liquidAssets": {
+      "type": "number",
+      "description": "Liquid assets in the book currency."
+    },
+    "totalAum": {
+      "type": "number",
+      "description": "Assets under management this client brings."
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code of the monetary fields (default CNY)."
+    }
+  },
+  "required": [
+    "name",
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_get`
+
+读取一位客户的完整 360° 视图:档案、最近 10 次互动、10 个最早到期的未完成任务、存续与近期赢单商机、最近 10 次咨询,以及风险测评有效性。在任何客户对话前用它做准备。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client id from crm_client_search or crm_client_create."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_search`
+
+搜索客户簿。多个过滤条件按 AND 组合;自由文本 query 不区分大小写地匹配姓名、标签与联系方式字段。在任何面向客户的操作前先用它解析 clientId。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Free-text match against name, tags, phone, email, wechat, region."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Exact individual/institution filter.",
+      "enum": [
+        "individual",
+        "institution"
+      ]
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "Exact lifecycle filter.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Exact owning-advisor filter."
+    },
+    "tag": {
+      "type": "string",
+      "description": "Exact tag filter."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 100)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_client_update`
+
+修补一条客户记录:缺席字段保持原值。提供 tolerance 会立即重新执行风险测评并重启其有效期窗口;联系方式与财务字段在已存值之上合并。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client to update."
+    },
+    "name": {
+      "type": "string",
+      "description": "New display name."
+    },
+    "lifecycle": {
+      "type": "string",
+      "description": "New funnel stage.",
+      "enum": [
+        "lead",
+        "prospect",
+        "onboarding",
+        "active",
+        "dormant",
+        "lost"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "New owning advisor id."
+    },
+    "tags": {
+      "type": "array",
+      "description": "Replacement tag set.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Replacement free-text notes."
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive. Supplying it re-assesses the client now.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "score": {
+      "type": "integer",
+      "description": "Questionnaire score 1–100 recorded with the re-assessment."
+    },
+    "phone": {
+      "type": "string",
+      "description": "Mobile phone number."
+    },
+    "email": {
+      "type": "string",
+      "description": "Email address."
+    },
+    "wechat": {
+      "type": "string",
+      "description": "WeChat handle."
+    },
+    "region": {
+      "type": "string",
+      "description": "Region or city."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "Annual income in the book currency."
+    },
+    "liquidAssets": {
+      "type": "number",
+      "description": "Liquid assets in the book currency."
+    },
+    "totalAum": {
+      "type": "number",
+      "description": "Assets under management this client brings."
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code of the monetary fields (default CNY)."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_consultation_record`
+
+记录一次带适当性审计的正式投资顾问咨询。每个讨论产品都会对照客户当前风险档案(容忍度等级 ≥ 产品风险等级且测评未过期)评估并随记录存储判定。即使判定不利也要记录咨询——审计轨迹必须完整;向客户呈现被阻断的判定而非推荐。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client advised."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "products": {
+      "type": "array",
+      "description": "Products discussed, each with its documented risk level R1–R5. Every entry gets a suitability verdict against the client's current risk profile.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Product display name."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Product category.",
+            "enum": [
+              "fund",
+              "insurance",
+              "structured",
+              "retirement",
+              "education",
+              "tax",
+              "advisory_fee"
+            ]
+          },
+          "riskLevel": {
+            "type": "string",
+            "description": "Product risk level: R1 low, R2 medium-low, R3 medium, R4 medium-high, R5 high.",
+            "enum": [
+              "R1",
+              "R2",
+              "R3",
+              "R4",
+              "R5"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "riskLevel"
+        ]
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "description": "Recommendations given.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "occurredAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp; defaults to now."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Advising advisor; defaults to the client's owner."
+    },
+    "interactionId": {
+      "type": "string",
+      "description": "The interaction this consultation extends, when it extends one."
+    },
+    "followUpRequired": {
+      "type": "boolean",
+      "description": "Whether a follow-up is required; defaults to false."
+    },
+    "summary": {
+      "type": "string",
+      "description": "Free-text summary."
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "Owning harness session when this agent mediated the consultation."
+    }
+  },
+  "required": [
+    "clientId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_interaction_list`
+
+按发生时间倒序列出客户互动。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Restrict to one channel.",
+      "enum": [
+        "consultation",
+        "call",
+        "wechat",
+        "meeting",
+        "email",
+        "report_review"
+      ]
+    },
+    "topic": {
+      "type": "string",
+      "description": "Restrict to interactions covering one advisory topic.",
+      "enum": [
+        "asset_allocation",
+        "retirement",
+        "tax",
+        "insurance",
+        "education",
+        "market_outlook",
+        "product_review",
+        "portfolio_rebalance",
+        "other"
+      ]
+    },
+    "since": {
+      "type": "string",
+      "description": "Only interactions at or after this ISO 8601 timestamp."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_interaction_log`
+
+在一次客户触点(电话、微信、面谈、邮件、报告解读或咨询)发生后立即记录。顾问默认取客户的所有者。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client touched."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Channel; defaults to consultation.",
+      "enum": [
+        "consultation",
+        "call",
+        "wechat",
+        "meeting",
+        "email",
+        "report_review"
+      ]
+    },
+    "summary": {
+      "type": "string",
+      "description": "One concise line about what was discussed."
+    },
+    "occurredAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp; defaults to now."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Handling advisor; defaults to the client's owner."
+    },
+    "durationMin": {
+      "type": "integer",
+      "description": "Duration in minutes when known."
+    },
+    "sentiment": {
+      "type": "string",
+      "description": "Recorded client tone.",
+      "enum": [
+        "positive",
+        "neutral",
+        "negative"
+      ]
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics covered.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "nextStep": {
+      "type": "string",
+      "description": "Agreed next step, when one was set."
+    },
+    "sessionId": {
+      "type": "string",
+      "description": "Owning harness session when this agent mediated the interaction."
+    }
+  },
+  "required": [
+    "clientId",
+    "summary"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_create`
+
+在管线中开启一个商机:客户、产品类别与交易金额。概率默认取开立阶段的值(new 为 10%)。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client pursued."
+    },
+    "productKind": {
+      "type": "string",
+      "description": "Product category.",
+      "enum": [
+        "fund",
+        "insurance",
+        "structured",
+        "retirement",
+        "education",
+        "tax",
+        "advisory_fee"
+      ]
+    },
+    "amount": {
+      "type": "number",
+      "description": "Deal value; positive."
+    },
+    "productName": {
+      "type": "string",
+      "description": "Specific product name when known."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor; defaults to the client's owner."
+    },
+    "stage": {
+      "type": "string",
+      "description": "Opening stage; defaults to new. Terminal stages are reached only through crm_opportunity_move.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation"
+      ]
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 upper-case code; defaults to CNY."
+    },
+    "probability": {
+      "type": "integer",
+      "description": "Win probability 0–100; defaults to the stage's value."
+    },
+    "expectedCloseAt": {
+      "type": "string",
+      "description": "Planned close time, ISO 8601."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    }
+  },
+  "required": [
+    "clientId",
+    "productKind",
+    "amount"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_list`
+
+按最近更新在前列出管线商机。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "stage": {
+      "type": "string",
+      "description": "Restrict to one stage.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost",
+        "abandoned"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_opportunity_move`
+
+在管线中推进一个商机。won/lost/abandoned 为终态;lost 与 abandoned 需要收尾原因;进入终态会盖章收尾时间并强制其概率(won 100、lost/abandoned 0)。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "opportunityId": {
+      "type": "string",
+      "description": "Deal to move."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target stage.",
+      "enum": [
+        "new",
+        "qualified",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost",
+        "abandoned"
+      ]
+    },
+    "probability": {
+      "type": "integer",
+      "description": "Win probability 0–100 for a non-terminal move; ignored entering a terminal stage."
+    },
+    "closeReason": {
+      "type": "string",
+      "description": "Why the deal closed or was abandoned; required entering lost or abandoned."
+    },
+    "notes": {
+      "type": "string",
+      "description": "Notes update."
+    }
+  },
+  "required": [
+    "opportunityId",
+    "to"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_report`
+
+运行一个 CRM 报表。pipeline:各阶段数量、金额、加权预测与赢单率。book:按生命周期与风险容忍度分布的客户、AUM 总额,以及 30 天内到期或已过期的风险测评。tasks:按顾问的未完成任务负载、逾期计数与下一批到期项。suitability:已记录咨询中产品判定的摊平审计轨迹。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "kind": {
+      "type": "string",
+      "description": "Which report to run.",
+      "enum": [
+        "pipeline",
+        "book",
+        "tasks",
+        "suitability"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict the report to one advisor."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum suitability entries (default 50, max 200; suitability only)."
+    }
+  },
+  "required": [
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_cancel`
+
+取消一个未完成任务;已取消任务保留在记录中以备审计。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to cancel."
+    }
+  },
+  "required": [
+    "taskId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_complete`
+
+将一个未完成任务标记为完成,并盖章完成时间。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to complete."
+    }
+  },
+  "required": [
+    "taskId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_create`
+
+安排一项跟进任务。责任顾问依次从显式字段、所指客户的Owner、所指商机的Owner 解析。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "One-line description of the work."
+    },
+    "dueAt": {
+      "type": "string",
+      "description": "Due time, ISO 8601."
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Client concerned, when task-specific."
+    },
+    "opportunityId": {
+      "type": "string",
+      "description": "Opportunity concerned, when deal-specific."
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Advisor who owes the work; defaults to the client or opportunity owner."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Task category; defaults to follow_up.",
+      "enum": [
+        "follow_up",
+        "meeting_prep",
+        "risk_review",
+        "compliance_check",
+        "document_delivery",
+        "report_delivery",
+        "client_care"
+      ]
+    },
+    "priority": {
+      "type": "string",
+      "description": "Urgency; defaults to normal.",
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    }
+  },
+  "required": [
+    "title",
+    "dueAt"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_list`
+
+按到期时间升序列出任务。不传 status 时仅返回未完成任务;overdue=true 选取已过期的未完成任务。每行携带派生的 overdue 标记。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "advisorId": {
+      "type": "string",
+      "description": "Restrict to one advisor."
+    },
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "status": {
+      "type": "string",
+      "description": "Lifecycle filter; omitting it lists open tasks only.",
+      "enum": [
+        "open",
+        "done",
+        "cancelled"
+      ]
+    },
+    "kind": {
+      "type": "string",
+      "description": "Restrict to one task category.",
+      "enum": [
+        "follow_up",
+        "meeting_prep",
+        "risk_review",
+        "compliance_check",
+        "document_delivery",
+        "report_delivery",
+        "client_care"
+      ]
+    },
+    "overdue": {
+      "type": "boolean",
+      "description": "Only open tasks past due now."
+    },
+    "dueBefore": {
+      "type": "string",
+      "description": "Only tasks due at or before this ISO 8601 timestamp."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_task_reschedule`
+
+更改一个未完成任务的到期时间。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "taskId": {
+      "type": "string",
+      "description": "Task to reschedule."
+    },
+    "dueAt": {
+      "type": "string",
+      "description": "New due time, ISO 8601."
+    }
+  },
+  "required": [
+    "taskId",
+    "dueAt"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+Sixteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 
@@ -1199,6 +2200,61 @@ create、edit、pause 和 resume 要求直接来自人类的根权限；complete
 来源：[`packages/schedule/schedule/src/tools.ts`](../packages/schedule/schedule/src/tools.ts)
 
 仅在选择启用的 Schedule 插件加载后创建的 live 根 Agent scope 内注册。版本 1 接受 after_seconds、显式绝对 at 和有界固定速率 every_seconds，并披露 session-local 交付；管理读取与变更必须通过共享的 Session 持久化 barrier。
+
+<a id="deepseek-aidsh-session-import"></a>
+
+## `@deepseek-ai/dsh-session-import`
+
+### `session_import`
+
+发现本机上其他编码智能体（Claude Code、Codex、ZCode）记录的对话，并将其中一个导入为本 harness 中完全可继续的会话。先用 `list` 枚举来源，再用选定的 provider 和 sourceId 执行 `import`。导入是幂等的：未变化的来源报告 up-to-date，已存在的目标绝不被覆盖。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "`list` enumerates discoverable external conversations; `import` converts one into a harness session.",
+      "enum": [
+        "list",
+        "import"
+      ]
+    },
+    "provider": {
+      "type": "string",
+      "description": "The source agent. Optional for `list` (scans every supported store); required for `import`.",
+      "enum": [
+        "claude-code",
+        "codex"
+      ]
+    },
+    "sourceId": {
+      "type": "string",
+      "description": "The external conversation id from a previous `list`. Required for `import`."
+    },
+    "force": {
+      "type": "boolean",
+      "description": "For `import` with an existing target: re-import the current source into a fresh versioned session instead of reporting conflict."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "For `list`: at most this many rows, newest first. Omit for every discovered conversation."
+    },
+    "query": {
+      "type": "string",
+      "description": "For `list`: keep only conversations whose transcript contains this substring (case-insensitive)."
+    }
+  },
+  "required": [
+    "action"
+  ]
+}
+```
+
+来源：[`packages/import/session-import/src/tool.ts`](../packages/import/session-import/src/tool.ts)
+
+将其他编码智能体（Claude Code、Codex、ZCode）的对话导入为新的、可继续的 harness 会话。`list` 枚举发现的来源存储；`import` 把一个对话翻译为经由组合持久化后端写入的持久会话。导入幂等（up-to-date / conflict），且从不覆盖已存在的目标；脱敏默认开启。
 
 <a id="deepseek-aidsh-tool-lsp"></a>
 

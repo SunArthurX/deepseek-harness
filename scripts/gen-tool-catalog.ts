@@ -29,6 +29,7 @@ import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@deepseek-ai/dsh-attachment'
 import UserQuestionService from '@deepseek-ai/dsh-user-questions'
 import PlanModeController from '@deepseek-ai/dsh-plan-mode'
+import SessionImportService from '@deepseek-ai/dsh-session-import'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import * as WebSearchExa from '@deepseek-ai/dsh-web-search-exa'
 import * as WebFetchLocal from '@deepseek-ai/dsh-web-fetch-http'
@@ -62,6 +63,10 @@ import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import type TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as ToolTeam from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
+import * as ToolCrm from '@deepseek-ai/dsh-tool-crm'
+import CrmService from '@deepseek-ai/dsh-crm'
+import Storage from '@deepseek-ai/dsh-storage'
+import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import { registerListSubagentModels } from '../packages/subagent/tool-subagent/src/list-models.ts'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
@@ -274,6 +279,38 @@ const TOOL_PACKAGES: ToolPackage[] = [
       'Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes.',
   },
   {
+    pkg: '@deepseek-ai/dsh-tool-crm',
+    dir: 'tool-crm',
+    source: 'packages/crm/tool-crm/src/index.ts',
+    requires: ['ctx.tools', 'ctx.crm (dsh-crm over ctx.storageDomain)'],
+    writes: ['tool/call', 'durable crm domain records', 'tool/result'],
+    async mount(ctx) {
+      // The tools inject `crm`; boot the real service over an in-memory KV
+      // unit so all eighteen schemas register. Schemas do not depend on the
+      // backend or the validity policy value.
+      await ctx.plugin(Storage)
+      ctx.storage.backend.register('catalog-memory', {
+        kv: {
+          open: () => Promise.resolve({
+            loadAll: () => Promise.resolve({ tables: {}, global: null }),
+            putRecord: () => Promise.resolve(),
+            deleteRecord: () => Promise.resolve(),
+            setGlobal: () => Promise.resolve(),
+            close: () => Promise.resolve(),
+          }),
+        },
+        close: () => Promise.resolve(),
+      })
+      const facility = new DomainFacility(ctx, { backend: 'catalog-memory', routes: {} })
+      ctx.storage.mount('domain', facility)
+      ctx.provide('storageDomain', facility)
+      await ctx.plugin(CrmService, { riskProfileValidityDays: 730 })
+      await ctx.plugin(ToolCrm)
+    },
+    note:
+      'Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.',
+  },
+  {
     pkg: '@deepseek-ai/dsh-tool-bash-persistent',
     dir: 'tool-bash-persistent',
     source: 'packages/shell/tool-bash-persistent/src/index.ts',
@@ -394,6 +431,22 @@ const TOOL_PACKAGES: ToolPackage[] = [
       + 'Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, '
       + 'and discloses session-local delivery; '
       + 'management reads and mutations require the shared Session persistence barrier.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-session-import',
+    dir: 'session-import',
+    source: 'packages/import/session-import/src/tool.ts',
+    requires: ['ctx.tools', 'ctx.sessions', 'Session persistence', 'the Claude Code / Codex stores on disk'],
+    writes: ['tool/call', 'tool/result', 'session-import/source in the NEW imported session'],
+    async mount(ctx) {
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(SessionImportService, {})
+    },
+    note:
+      'Imports external coding-agent conversations (Claude Code, Codex) as new, continuable harness '
+      + 'sessions. `list` enumerates discovered source stores; `import` translates one conversation into '
+      + 'a durable session written through the composed persistence backend. Import is idempotent '
+      + '(up-to-date / conflict) and never overwrites an existing target; redaction is default-on.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-lsp',

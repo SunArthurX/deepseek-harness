@@ -586,6 +586,25 @@ export interface Config {
 
 Source: [`packages/credentials/credentials-local/src/index.ts:64`](../packages/credentials/credentials-local/src/index.ts)
 
+<a id="deepseek-aidsh-crm"></a>
+
+## `@deepseek-ai/dsh-crm`
+
+Requires: `storageDomain`
+
+```ts config-catalog
+/** Required deployment policy for the CRM domain. */
+export interface Config {
+  /**
+   * How many days one risk assessment stays valid; re-assessment resets the
+   * window and suitability treats an expired assessment as blocking.
+   */
+  readonly riskProfileValidityDays: number
+}
+```
+
+Source: [`packages/crm/crm/src/index.ts:235`](../packages/crm/crm/src/index.ts)
+
 <a id="deepseek-aidsh-e2b"></a>
 
 ## `@deepseek-ai/dsh-e2b`
@@ -1807,6 +1826,46 @@ export interface JsonRpcConfig {
 Depends on: `Readable` (`node:stream`) · `Writable` (`node:stream`)
 
 Source: [`packages/sdk/server/src/index.ts:25`](../packages/sdk/server/src/index.ts)
+
+<a id="deepseek-aidsh-session-import"></a>
+
+## `@deepseek-ai/dsh-session-import`
+
+Requires: `sessions` · `tools`
+
+```ts config-catalog
+/** Deployment configuration for the session-import plugin. */
+export interface Config {
+  /** Claude home directory; defaults to `~/.claude` when absent or empty. */
+  claudeHome?: string
+  /** Codex home directory; defaults to `~/.codex` when absent or empty. */
+  codexHome?: string
+  /** ZCode home directory; defaults to `~/.zcode` when absent or empty. */
+  zcodeHome?: string
+  /** MiniMax home directory; defaults to `~/.minimax` when absent or empty. */
+  minimaxHome?: string
+  /** Model id recorded when a source conversation reports none. */
+  defaultModel?: string
+  /** Rejection budget for one source file, in bytes. */
+  maxFileBytes?: number
+  /** Per-tool-result text cap, in characters. */
+  maxToolResultChars?: number
+  /** Keep source reasoning text as `reasoning` blocks instead of dropping it. */
+  includeReasoning?: boolean
+  /** Replace credential-shaped substrings before they enter the durable log. */
+  redactSecrets?: boolean
+  /**
+   * Working directory stamped onto every imported session header. All imports
+   * therefore share one workspace group (named after this directory's last
+   * segment) instead of scattering across their source projects; the source
+   * project path survives in the import provenance event. Defaults to
+   * `<dsh home>/导入`. Absolute, or relative to the user's home directory.
+   */
+  importGroupHome?: string
+}
+```
+
+Source: [`packages/import/session-import/src/service.ts:17`](../packages/import/session-import/src/service.ts)
 
 <a id="deepseek-aidsh-session-log-deepseek"></a>
 
@@ -3451,6 +3510,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-command-goal` — requires `commands` · `goals` ([`packages/goal/command-goal/src/index.ts`](../packages/goal/command-goal/src/index.ts))
 - `@deepseek-ai/dsh-commands` ([`packages/interaction/commands/src/index.ts`](../packages/interaction/commands/src/index.ts))
 - `@deepseek-ai/dsh-cordis-client-runner` ([`packages/extensions/cordis-client-runner/src/index.ts`](../packages/extensions/cordis-client-runner/src/index.ts))
+- `@deepseek-ai/dsh-crm-console` — requires `webServer` · `crm` ([`packages/crm/crm-console/src/index.ts`](../packages/crm/crm-console/src/index.ts))
 - `@deepseek-ai/dsh-deepseek-llm-api-extensions` ([`packages/llm/deepseek-llm-api-extensions/src/index.ts`](../packages/llm/deepseek-llm-api-extensions/src/index.ts))
 - `@deepseek-ai/dsh-experimental-client-ui-agent-team` ([`packages/experimental/client-ui-agent-team/src/index.ts`](../packages/experimental/client-ui-agent-team/src/index.ts))
 - `@deepseek-ai/dsh-fs-e2b` — requires `e2b` ([`packages/e2b/fs-e2b/src/index.ts`](../packages/e2b/fs-e2b/src/index.ts))
@@ -3464,6 +3524,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-schedule` — requires `agents` · `sessions` · `tools` · `sessionPersistence` ([`packages/schedule/schedule/src/index.ts`](../packages/schedule/schedule/src/index.ts))
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))
 - `@deepseek-ai/dsh-session-checkpoint-policy` — requires `llm` · `sessionPersistence` · `sessions` · `tools` ([`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts))
+- `@deepseek-ai/dsh-session-import-console` — requires `webServer` · `sessionImport` ([`packages/import/session-import-console/src/index.ts`](../packages/import/session-import-console/src/index.ts))
 - `@deepseek-ai/dsh-session-projection` ([`packages/session/session-projection/src/index.ts`](../packages/session/session-projection/src/index.ts))
 - `@deepseek-ai/dsh-session-stats` — requires `sessionProjections` ([`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts))
 - `@deepseek-ai/dsh-skill-badge` — requires `skills` ([`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts))
@@ -3474,6 +3535,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-tool-ask-user` — requires `tools` · `userQuestions` ([`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts))
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — requires `tools` ([`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts))
 - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
+- `@deepseek-ai/dsh-tool-crm` — requires `tools` · `crm` ([`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts))
 - `@deepseek-ai/dsh-tool-subagent-control` — requires `tools` · `subagents` ([`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts))
 - `@deepseek-ai/dsh-user-questions` ([`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts))
 - `@deepseek-ai/dsh-webhook` — requires `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry` ([`packages/webhook/webhook/src/index.ts`](../packages/webhook/webhook/src/index.ts))

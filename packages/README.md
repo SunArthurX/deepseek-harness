@@ -63,6 +63,8 @@ Every package lives in exactly one group; new packages join existing groups, and
 | [`extensions/`](extensions/README.md) | Agent runtime self-modification: live plugin/service inspection and model-written mount/unmount |
 | [`hooks/`](hooks/README.md) | Hook bridges + the shared Claude Code / Codex wire-protocol library |
 | [`session/`](session/README.md) | Durable session data plane: persistence seam + backends, projection seam, log-backed titles, session reporting |
+| [`import/`](import/README.md) | External agent session import: Claude Code / Codex transcripts as continuable harness sessions |
+| [`crm/`](crm/README.md) | Investment-advisory CRM: durable client book, suitability-audited consultations, pipeline, tasks |
 | [`session-query/`](session-query/README.md) | Session retrieval family: logical corpus, bounded reads, lineage, semantic filtering, SQLite full-text search |
 | [`settings/`](settings/README.md) | User-settings seam + file-backed provider |
 | [`credentials/`](credentials/README.md) | Credential-reference and credential-record seam + env-over-`.env` provider + authorization flows that ask a human |
