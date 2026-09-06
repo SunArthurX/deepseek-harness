@@ -1,0 +1,16 @@
+# Opt-in CRM patch over the shipped composition. The overlay adds the
+# investment-advisory CRM service, its model-facing tools, and the browser
+# management console at /crm-console on the web server; the validity policy is
+# explicit (730 days) because the field has no default.
+
+- insert:
+    - id: crm
+      name: '@deepseek-ai/dsh-crm'
+      config:
+        riskProfileValidityDays: 730
+
+    - id: tool-crm
+      name: '@deepseek-ai/dsh-tool-crm'
+
+    - id: crm-console
+      name: '@deepseek-ai/dsh-crm-console'
