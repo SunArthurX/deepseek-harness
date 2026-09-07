@@ -751,6 +751,169 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'crm',
+    summary: 'Durable investment-advisory CRM.',
+    description: 'Durable investment-advisory CRM. Writes serialize on one service-level chain so each read-validate-write mutation observes the previous one\'s landed state; reads are synchronous snapshots of the domain\'s memory.',
+    methods: [
+      {
+        signature: 'registerAdvisor(request: CreateAdvisorRequest): Promise<AdvisorRecord>',
+        description: 'Register one advisor.',
+        parameters: [{ name: 'request', description: 'Name plus optional team, license, specialties, and availability.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'getAdvisor(advisorId: AdvisorId): AdvisorRecord | undefined',
+        description: 'Read one advisor.',
+        parameters: [{ name: 'advisorId', description: 'Advisor to read.' }],
+        returns: 'the record, or undefined when absent.',
+      },
+      {
+        signature: 'listAdvisors(active?: boolean): AdvisorRecord[]',
+        description: 'List advisors.',
+        parameters: [{ name: 'active', description: 'Restrict to this availability when provided.' }],
+        returns: 'records sorted by name.',
+      },
+      {
+        signature: 'loadDemoData(now: number = Date.now()): Promise<DemoDataSummary>',
+        description: 'Load the built-in demo book (advisors, clients across every profile status, interactions, suitability-varied consultations, pipeline deals, one overdue task) through the real mutation rules. Refuses when the client book is non-empty, so it is a one-time onboarding action.',
+        parameters: [{ name: 'now', description: 'Reference time the demo stages around; defaults to the clock.' }],
+        returns: 'committed record counts.',
+      },
+      {
+        signature: 'createClient(request: CreateClientRequest): Promise<ClientRecord>',
+        description: 'Create one client. An initial risk assessment, when given, expires after the configured validity window.',
+        parameters: [{ name: 'request', description: 'Name, kind, and optional profile fields.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'updateClient(clientId: ClientId, patch: ClientPatch): Promise<ClientRecord>',
+        description: 'Patch one client. Absent fields keep their values; a risk-profile patch re-assesses at `assessedAt` (default now) and re-derives the expiry.',
+        parameters: [{ name: 'clientId', description: 'Client to update.' }, { name: 'patch', description: 'Fields to replace.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'getClient(clientId: ClientId): ClientRecord | undefined',
+        description: 'Read one client.',
+        parameters: [{ name: 'clientId', description: 'Client to read.' }],
+        returns: 'the record, or undefined when absent.',
+      },
+      {
+        signature: 'searchClients(query: ClientSearchQuery = {}): ClientSummary[]',
+        description: 'Search clients. Filters combine with AND; the free-text `query` matches name, tags, and contact fields case-insensitively.',
+        parameters: [{ name: 'query', description: 'Filters plus an optional result limit (default 20, max 100).' }],
+        returns: 'summaries sorted by last update, newest first.',
+      },
+      {
+        signature: 'clientBook(clientId: ClientId): ClientBook',
+        description: 'Assemble the 360° view of one client: the ten most recent interactions, the ten soonest-due open tasks, live and recent-won opportunities, the ten most recent consultations, and the current risk-assessment status.',
+        parameters: [{ name: 'clientId', description: 'Client to assemble around.' }],
+        returns: 'the book view.',
+      },
+      {
+        signature: 'logInteraction(request: LogInteractionRequest): Promise<InteractionRecord>',
+        description: 'Log one interaction.',
+        parameters: [{ name: 'request', description: 'Client, summary, and channel details.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'listInteractions(query: InteractionListQuery = {}): InteractionRecord[]',
+        description: 'List interactions.',
+        parameters: [{ name: 'query', description: 'Client, advisor, channel, and since filters plus a limit (default 20, max 200).' }],
+        returns: 'records sorted by occurrence, newest first.',
+      },
+      {
+        signature: 'recordConsultation(request: RecordConsultationRequest): Promise<ConsultationRecord>',
+        description: 'Record one consultation. Every discussed product gets a suitability verdict evaluated against the client\'s profile at consultation time and stored with the record for audit.',
+        parameters: [{ name: 'request', description: 'Client, topics, products, and recommendations.' }],
+        returns: 'the committed record including the suitability assessments.',
+      },
+      {
+        signature: 'listConsultations(clientId?: ClientId, limit?: number): ConsultationRecord[]',
+        description: 'List consultations.',
+        parameters: [{ name: 'clientId', description: 'Restrict to one client when provided.' }, { name: 'limit', description: 'Maximum rows (default 20, max 200).' }],
+        returns: 'records sorted by occurrence, newest first.',
+      },
+      {
+        signature: 'suitabilityAudit(clientId?: ClientId, limit?: number, advisorId?: AdvisorId): SuitabilityAuditEntry[]',
+        description: 'Flatten the suitability audit trail: one entry per discussed product.',
+        parameters: [{ name: 'clientId', description: 'Restrict to one client when provided.' }, { name: 'limit', description: 'Maximum entries (default 50, max 200).' }, { name: 'advisorId', description: 'Restrict to one advising advisor when provided.' }],
+        returns: 'entries sorted by consultation time, newest first.',
+      },
+      {
+        signature: 'createOpportunity(request: CreateOpportunityRequest): Promise<OpportunityRecord>',
+        description: 'Open one opportunity in the pipeline.',
+        parameters: [{ name: 'request', description: 'Client, product, amount, and stage details.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'moveOpportunity(request: MoveOpportunityRequest): Promise<OpportunityRecord>',
+        description: 'Move one opportunity through the pipeline. Terminal targets stamp the close time; lost and abandoned require a close reason; entering won, lost, or abandoned forces the stage\'s probability.',
+        parameters: [{ name: 'request', description: 'Target stage plus optional probability, reason, and notes.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'getOpportunity(opportunityId: OpportunityId): OpportunityRecord | undefined',
+        description: 'Read one opportunity.',
+        parameters: [{ name: 'opportunityId', description: 'Opportunity to read.' }],
+        returns: 'the record, or undefined when absent.',
+      },
+      {
+        signature: 'listOpportunities(query: OpportunityListQuery = {}): OpportunityRecord[]',
+        description: 'List opportunities.',
+        parameters: [{ name: 'query', description: 'Client, stage, and advisor filters plus a limit (default 20, max 200).' }],
+        returns: 'records sorted by last update, newest first.',
+      },
+      {
+        signature: 'createTask(request: CreateTaskRequest): Promise<TaskRecord>',
+        description: 'Schedule one task. The owning advisor resolves from the explicit field, else the named client\'s owner, else the named opportunity\'s owner.',
+        parameters: [{ name: 'request', description: 'Title, due time, and scope references.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'completeTask(taskId: TaskId): Promise<TaskRecord>',
+        description: 'Complete one open task.',
+        parameters: [{ name: 'taskId', description: 'Task to complete.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'cancelTask(taskId: TaskId): Promise<TaskRecord>',
+        description: 'Cancel one open task.',
+        parameters: [{ name: 'taskId', description: 'Task to cancel.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'rescheduleTask(taskId: TaskId, dueAt: number): Promise<TaskRecord>',
+        description: 'Reschedule one open task.',
+        parameters: [{ name: 'taskId', description: 'Task to reschedule.' }, { name: 'dueAt', description: 'New due time in epoch ms.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'listTasks(query: TaskListQuery = {}): TaskRecord[]',
+        description: 'List tasks. Without `status` only open tasks are returned; `overdue` selects open tasks due strictly before now.',
+        parameters: [{ name: 'query', description: 'Advisor, client, status, due-window, and overdue filters plus a limit (default 20, max 200).' }],
+        returns: 'records sorted by due time, soonest first.',
+      },
+      {
+        signature: 'pipelineSnapshot(advisorId?: AdvisorId): PipelineSnapshot',
+        description: 'Aggregate the pipeline at one point in time.',
+        parameters: [{ name: 'advisorId', description: 'Restrict to one advisor\'s deals when provided.' }],
+        returns: 'per-stage summaries plus open, forecast, and outcome totals.',
+      },
+      {
+        signature: 'bookSnapshot(advisorId?: AdvisorId): BookSnapshot',
+        description: 'Aggregate the client book at one point in time.',
+        parameters: [{ name: 'advisorId', description: 'Restrict to one advisor\'s clients when provided.' }],
+        returns: 'lifecycle and tolerance distributions, AUM, and assessment-expiry notices.',
+      },
+      {
+        signature: 'taskLoad(advisorId?: AdvisorId): TaskLoadSnapshot',
+        description: 'Aggregate the open-task load at one point in time.',
+        parameters: [{ name: 'advisorId', description: 'Restrict to one advisor\'s tasks when provided.' }],
+        returns: 'open and overdue counts, per-priority counts, and the next due tasks.',
+      },
+    ],
+  },
+  {
     key: 'deepseekLlmApiExtensions',
     summary: 'Registry of independently owned top-level fields for official DeepSeek requests.',
     description: 'Registry of independently owned top-level fields for official DeepSeek requests.',
@@ -1449,6 +1612,53 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'List file and directory candidates for one Agent\'s working directory.',
         parameters: [{ name: 'agent', description: 'target Agent resolved from the Session identity on the wire.' }, { name: 'query', description: 'path text following `@` or `@"`.' }, { name: 'signal', description: 'caller cancellation.' }],
         returns: 'deterministic path-only candidates from the composed provider.',
+      },
+    ],
+  },
+  {
+    key: 'sessionImport',
+    summary: 'The `session-import` service (`ctx.sessionImport`).',
+    description: 'The `session-import` service (`ctx.sessionImport`).',
+    methods: [
+      {
+        signature: 'async listSources(options: { readonly provider?: ExternalProviderId readonly limit?: number /** Raw substring filter: keeps conversations whose transcript contains it (case-insensitive). */ readonly query?: string } = {}): Promise<SourceListing[]>',
+        description: 'List the source conversations a provider\'s store currently holds, marking the ones this harness already imported. Rows sort most recently modified first, so a `limit` keeps the freshest conversations.',
+        parameters: [{ name: 'options', description: 'the provider to scan (omitted scans every supported store) and an optional row cap.' }],
+        returns: 'at most `limit` rows (default all), most recently modified first.',
+      },
+      {
+        signature: 'async resolve(request: { readonly provider: ExternalProviderId readonly sourceId: string readonly targetId?: string }): Promise<ImportSpec>',
+        description: 'Explicit resolve step for one import: locate the source, name the target, and freeze the translation spec.',
+        parameters: [{ name: 'request', description: 'the provider, source id, and optional explicit target id.' }],
+        returns: 'the resolved spec.',
+        throws: ['{@link SourceNotFoundError} when the store has no such conversation.'],
+      },
+      {
+        signature: 'async importSource(request: { readonly provider: ExternalProviderId readonly sourceId: string readonly targetId?: string /** On conflict, re-import the current source into a fresh versioned target instead of skipping. */ readonly force?: boolean }): Promise<ImportOutcome>',
+        description: 'Import one external conversation as a new, continuable harness session. The import writes the translated log straight to the composed persistence backend — it never occupies the live store — so the session resumes through the ordinary path in this or any later process. Idempotent: importing an unchanged source again reports `up-to-date`; importing a changed source over the deterministic target reports `conflict` rather than silently duplicating or diverging history.',
+        parameters: [{ name: 'request', description: 'the provider, source id, and optional explicit target id.' }],
+        returns: 'the outcome, including the target session id.',
+        throws: ['{@link SourceNotFoundError} when the store has no such conversation.', '{@link TargetCollisionError} when the target id is taken by anything else.', 'when no persistence backend is composed, or the source is unreadable, empty, or names no model.'],
+      },
+      {
+        signature: 'async previewSource( request: { readonly provider: ExternalProviderId; readonly sourceId: string }, options: { readonly maxMessages?: number } = {}, ): Promise<SourcePreview>',
+        description: 'Render one source conversation as a capped, read-only chat preview: user and assistant messages with the tool calls each assistant turn made. Tool results stay summarized in the counts — they are working output, not conversation. Parsing rules (budget, noise filtering, reasoning) are exactly those an import would apply.',
+        parameters: [{ name: 'request', description: 'the provider and source id.' }, { name: 'options', description: 'cap for the returned message list (default 120).' }],
+        returns: 'the preview, capped for display with whole-conversation counts.',
+        throws: ['{@link SourceNotFoundError} when the store has no such conversation.', 'when the source is unreadable, empty, or names no model.'],
+      },
+      {
+        signature: 'async syncAll(options: { readonly provider?: ExternalProviderId; readonly limit?: number } = {}): Promise<SyncOutcome>',
+        description: 'Batch-sync every discovered conversation (or one provider\'s) into durable harness sessions: new conversations import, unchanged ones report `up-to-date` and skip, and a conversation whose source changed under an existing deterministic target reports `conflict` and skips — sync never overwrites and never duplicates. The new-import quota (`limit`, default 200, `0` = unlimited) counts only fresh imports; up-to-date skips never consume it, so a bounded sync still reaches new conversations.',
+        parameters: [{ name: 'options', description: 'the provider to sync (omitted syncs every store) and a new-import cap.' }],
+        returns: 'per-conversation results plus rolled-up counts.',
+      },
+      {
+        signature: 'async continueSession( sessionId: string, prompt: string, options: { readonly agentOptions?: AgentOptions } = {}, ): Promise<{ sessionId: SessionId }>',
+        description: 'Send one prompt to an imported session, creating its agent first when the session is not live in this process. The agent then runs the ordinary loop; consumers observe progress on `session/event` as with any session.',
+        parameters: [{ name: 'sessionId', description: 'the imported session\'s id.' }, { name: 'prompt', description: 'the user prompt that continues the imported conversation.' }, { name: 'options', description: 'per-agent options (the model route the continued requests use).' }],
+        returns: 'the id of the session now being driven.',
+        throws: ['when no session with that id exists, the log is not an import, or no agent factory is registered.'],
       },
     ],
   },
@@ -3387,6 +3597,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
   },
   {
+    name: 'AdvisorId',
+    declaration: 'export type AdvisorId = Branded<\'crm-advisor\'>;',
+  },
+  {
+    name: 'AdvisorRecord',
+    declaration: 'export interface AdvisorRecord {\n    readonly id: AdvisorId;\n    readonly name: string;\n    readonly team?: string;\n    readonly licenseNo?: string;\n    readonly specialties: readonly AdvisoryTopic[];\n    readonly active: boolean;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'AdvisoryTopic',
+    declaration: 'export type AdvisoryTopic = \'asset_allocation\' | \'retirement\' | \'tax\' | \'insurance\' | \'education\' | \'market_outlook\' | \'product_review\' | \'portfolio_rebalance\' | \'other\';',
+  },
+  {
     name: 'Agent',
     declaration: 'export interface Agent {\n    readonly id: SessionId;\n}',
   },
@@ -3583,6 +3805,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface BashEnvVariableInfo extends BashEnvVariable {\n    contributor: string;\n    key: DshEnvironmentKey;\n}',
   },
   {
+    name: 'BookSnapshot',
+    declaration: 'export interface BookSnapshot {\n    readonly advisorId?: AdvisorId;\n    readonly totalClients: number;\n    readonly byLifecycle: readonly LifecycleCount[];\n    readonly byTolerance: readonly ToleranceAum[];\n    readonly totalAum: number;\n    readonly expiringProfiles: readonly ProfileExpiryNotice[];\n    readonly expiredProfiles: readonly ProfileExpiryNotice[];\n}',
+  },
+  {
     name: 'BorrowedSessionSource',
     declaration: 'export type BorrowedSessionSource = Disposable & ({\n    readonly source: \'prepared\';\n    readonly inspection: SessionInspection;\n    readonly revision: SessionPersistenceRevision;\n    readonly preparedSession: Session;\n} | {\n    readonly source: \'live\';\n    readonly inspection: SessionInspection;\n});',
   },
@@ -3597,6 +3823,38 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ClientArtifactBaseline',
     declaration: 'export interface ClientArtifactBaseline {\n    readonly path: string;\n    readonly mtimeMs: number;\n    readonly size: number;\n}',
+  },
+  {
+    name: 'ClientBook',
+    declaration: 'export interface ClientBook {\n    readonly client: ClientRecord;\n    readonly interactions: readonly InteractionRecord[];\n    readonly openTasks: readonly TaskRecord[];\n    readonly opportunities: readonly OpportunityRecord[];\n    readonly consultations: readonly ConsultationRecord[];\n    readonly profileStatus: ProfileStatus;\n}',
+  },
+  {
+    name: 'ClientId',
+    declaration: 'export type ClientId = Branded<\'crm-client\'>;',
+  },
+  {
+    name: 'ClientKind',
+    declaration: 'export type ClientKind = \'individual\' | \'institution\';',
+  },
+  {
+    name: 'ClientLifecycle',
+    declaration: 'export type ClientLifecycle = \'lead\' | \'prospect\' | \'onboarding\' | \'active\' | \'dormant\' | \'lost\';',
+  },
+  {
+    name: 'ClientPatch',
+    declaration: 'export interface ClientPatch {\n    readonly name?: string;\n    readonly lifecycle?: ClientLifecycle;\n    readonly contact?: ContactInfo;\n    readonly financial?: FinancialProfile;\n    readonly notes?: string;\n    readonly advisorId?: AdvisorId;\n    readonly tags?: readonly string[];\n    readonly riskProfile?: {\n        readonly tolerance: RiskTolerance;\n        readonly score?: number;\n        readonly assessedAt?: number;\n    };\n}',
+  },
+  {
+    name: 'ClientRecord',
+    declaration: 'export interface ClientRecord {\n    readonly id: ClientId;\n    readonly name: string;\n    readonly kind: ClientKind;\n    readonly lifecycle: ClientLifecycle;\n    readonly contact?: ContactInfo;\n    readonly riskProfile?: RiskProfile;\n    readonly financial?: FinancialProfile;\n    readonly advisorId?: AdvisorId;\n    readonly tags: readonly string[];\n    readonly notes?: string;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'ClientSearchQuery',
+    declaration: 'export interface ClientSearchQuery {\n    readonly query?: string;\n    readonly kind?: ClientKind;\n    readonly lifecycle?: ClientLifecycle;\n    readonly tolerance?: RiskTolerance;\n    readonly advisorId?: AdvisorId;\n    readonly tag?: string;\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'ClientSummary',
+    declaration: 'export interface ClientSummary {\n    readonly id: ClientId;\n    readonly name: string;\n    readonly kind: ClientKind;\n    readonly lifecycle: ClientLifecycle;\n    readonly tolerance: RiskTolerance | null;\n    readonly totalAum: number | null;\n    readonly advisorId?: AdvisorId;\n    readonly tags: readonly string[];\n    readonly profileStatus: ProfileStatus;\n}',
   },
   {
     name: 'CodeBindingErrorClass',
@@ -3681,6 +3939,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ConfinedSandboxMode',
     declaration: 'export type ConfinedSandboxMode = Exclude<SandboxMode, \'danger-full-access\'>;',
+  },
+  {
+    name: 'ConsultationId',
+    declaration: 'export type ConsultationId = Branded<\'crm-consultation\'>;',
+  },
+  {
+    name: 'ConsultationRecord',
+    declaration: 'export interface ConsultationRecord {\n    readonly id: ConsultationId;\n    readonly clientId: ClientId;\n    readonly advisorId: AdvisorId;\n    readonly interactionId?: InteractionId;\n    readonly occurredAt: number;\n    readonly topics: readonly AdvisoryTopic[];\n    readonly products: readonly SuitabilityAssessment[];\n    readonly recommendations: readonly string[];\n    readonly followUpRequired: boolean;\n    readonly summary?: string;\n    readonly sessionId?: string;\n    readonly createdAt: number;\n}',
+  },
+  {
+    name: 'ContactInfo',
+    declaration: 'export interface ContactInfo {\n    readonly phone?: string;\n    readonly email?: string;\n    readonly wechat?: string;\n    readonly region?: string;\n}',
   },
   {
     name: 'ContentBlockMap',
@@ -3791,8 +4061,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CordisRuntimeTreeReader {\n    getTree(): Promise<CordisRuntimeTree>;\n}',
   },
   {
+    name: 'CreateAdvisorRequest',
+    declaration: 'export interface CreateAdvisorRequest {\n    readonly name: string;\n    readonly team?: string;\n    readonly licenseNo?: string;\n    readonly specialties?: readonly AdvisoryTopic[];\n    readonly active?: boolean;\n}',
+  },
+  {
     name: 'CreateAgentOptions',
     declaration: 'export interface CreateAgentOptions {\n    readonly sessionId: SessionId;\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n    readonly seed?: readonly SessionEvent[];\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+  },
+  {
+    name: 'CreateClientRequest',
+    declaration: 'export interface CreateClientRequest {\n    readonly name: string;\n    readonly kind: ClientRecord[\'kind\'];\n    readonly lifecycle?: ClientLifecycle;\n    readonly contact?: ClientRecord[\'contact\'];\n    readonly financial?: FinancialProfile;\n    readonly advisorId?: AdvisorId;\n    readonly tags?: readonly string[];\n    readonly notes?: string;\n    readonly riskProfile?: {\n        readonly tolerance: RiskTolerance;\n        readonly score?: number;\n    };\n}',
   },
   {
     name: 'CreateGoalRequest',
@@ -3803,8 +4081,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateGoalResult {\n    readonly ref: GoalRef;\n}',
   },
   {
+    name: 'CreateOpportunityRequest',
+    declaration: 'export interface CreateOpportunityRequest {\n    readonly clientId: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly productKind: OpportunityRecord[\'productKind\'];\n    readonly productName?: string;\n    readonly stage?: OpportunityStage;\n    readonly amount: number;\n    readonly currency?: string;\n    readonly probability?: number;\n    readonly expectedCloseAt?: number;\n    readonly notes?: string;\n}',
+  },
+  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
+  },
+  {
+    name: 'CreateTaskRequest',
+    declaration: 'export interface CreateTaskRequest {\n    readonly advisorId?: AdvisorId;\n    readonly clientId?: ClientId;\n    readonly opportunityId?: OpportunityId;\n    readonly kind?: TaskKind;\n    readonly title: string;\n    readonly dueAt: number;\n    readonly priority?: TaskPriority;\n    readonly notes?: string;\n}',
   },
   {
     name: 'CreateTeamTaskRequest',
@@ -3851,6 +4137,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DeepSeekLlmApiJson = null | boolean | number | string | DeepSeekLlmApiJson[] | {\n    [key: string]: DeepSeekLlmApiJson;\n};',
   },
   {
+    name: 'DemoDataSummary',
+    declaration: 'export interface DemoDataSummary {\n    readonly advisors: number;\n    readonly clients: number;\n    readonly interactions: number;\n    readonly consultations: number;\n    readonly opportunities: number;\n    readonly tasks: number;\n}',
+  },
+  {
     name: 'DiffCallView',
     declaration: 'export interface DiffCallView {\n    card: \'diff\';\n    title: string;\n    diffs: FileDiff[];\n    locations?: FileLocation[];\n}',
   },
@@ -3885,6 +4175,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'DirectoryRegistrationHandle',
     declaration: 'export interface DirectoryRegistrationHandle {\n    (): void;\n    replace(entries: readonly LlmConfigurableProvider[]): void;\n}',
+  },
+  {
+    name: 'DiscoveredSession',
+    declaration: 'export interface DiscoveredSession {\n    readonly provider: ExternalProviderId;\n    readonly sourceId: string;\n    readonly sourcePath: string;\n    readonly sizeBytes: number;\n    readonly mtimeMs: number;\n    readonly title?: string;\n}',
   },
   {
     name: 'Domain',
@@ -3939,6 +4233,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type DshEnvironmentKey = `${typeof DSH_ENV_PREFIX}${string}`;',
   },
   {
+    name: 'DueTaskSummary',
+    declaration: 'export interface DueTaskSummary {\n    readonly id: TaskId;\n    readonly title: string;\n    readonly dueAt: number;\n    readonly clientId?: ClientId;\n    readonly priority: TaskPriority;\n    readonly overdue: boolean;\n}',
+  },
+  {
     name: 'DynamicCordisPackage',
     declaration: 'export interface DynamicCordisPackage {\n    pluginId: CordisDynamicPluginId;\n    packageId: CordisDynamicPackageId;\n    pluginRunId: CordisDynamicPluginRunId;\n    name: string;\n}',
   },
@@ -3967,6 +4265,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface EpochHeader {\n    config: LlmCallConfig;\n    adapterDefaults?: LlmCallConfigAdapterDefaults;\n    system?: string;\n    tools?: ToolSchema[];\n}',
   },
   {
+    name: 'ExternalProviderId',
+    declaration: 'export type ExternalProviderId = \'claude-code\' | \'codex\' | \'zcode\' | \'minimax\';',
+  },
+  {
     name: 'FileDiff',
     declaration: 'export interface FileDiff {\n    path: string;\n    oldText: string | null;\n    newText: string;\n}',
   },
@@ -3977,6 +4279,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'FileReferenceCandidate',
     declaration: 'export interface FileReferenceCandidate {\n    path: string;\n    kind: \'file\' | \'directory\';\n}',
+  },
+  {
+    name: 'FinancialProfile',
+    declaration: 'export interface FinancialProfile {\n    readonly annualIncome?: number;\n    readonly liquidAssets?: number;\n    readonly totalAum: number;\n    readonly currency: string;\n}',
   },
   {
     name: 'FinishReason',
@@ -4107,6 +4413,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ImageVariantId = Branded<\'ImageVariantId\'>;',
   },
   {
+    name: 'ImportOutcome',
+    declaration: 'export interface ImportOutcome {\n    readonly status: \'imported\' | \'up-to-date\' | \'conflict\';\n    readonly sessionId: SessionId;\n    readonly eventCount?: number;\n    readonly title?: string;\n    readonly importedAt?: number;\n    readonly existingSourceId?: string;\n    readonly sourceResumeHint?: string;\n}',
+  },
+  {
+    name: 'ImportSpec',
+    declaration: 'export interface ImportSpec {\n    readonly source: DiscoveredSession;\n    readonly targetId: SessionId;\n    readonly home: string;\n    readonly translation: TranslationSpec;\n}',
+  },
+  {
     name: 'IndexInjection',
     declaration: 'export type IndexInjection = {\n    kind: \'global\';\n    name: string;\n    value: unknown;\n} | {\n    kind: \'script\';\n    placement: IndexInjectionPlacement;\n    text: string;\n} | {\n    kind: \'script-src\';\n    placement: IndexInjectionPlacement;\n    src: string;\n} | {\n    kind: \'script-preload\';\n    src: string;\n} | {\n    kind: \'style\';\n    text: string;\n} | {\n    kind: \'html\';\n    placement: IndexInjectionPlacement;\n    html: string;\n};',
   },
@@ -4129,6 +4443,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'InspectorJsonValue',
     declaration: 'export type InspectorJsonValue = InspectorJsonPrimitive | readonly InspectorJsonValue[] | InspectorJsonObject;',
+  },
+  {
+    name: 'InteractionId',
+    declaration: 'export type InteractionId = Branded<\'crm-interaction\'>;',
+  },
+  {
+    name: 'InteractionKind',
+    declaration: 'export type InteractionKind = \'consultation\' | \'call\' | \'wechat\' | \'meeting\' | \'email\' | \'report_review\';',
+  },
+  {
+    name: 'InteractionListQuery',
+    declaration: 'export interface InteractionListQuery {\n    readonly clientId?: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly kind?: InteractionKind;\n    readonly topic?: AdvisoryTopic;\n    readonly since?: number;\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'InteractionRecord',
+    declaration: 'export interface InteractionRecord {\n    readonly id: InteractionId;\n    readonly clientId: ClientId;\n    readonly advisorId: AdvisorId;\n    readonly kind: InteractionKind;\n    readonly occurredAt: number;\n    readonly durationMin?: number;\n    readonly summary: string;\n    readonly sentiment?: InteractionSentiment;\n    readonly topics: readonly AdvisoryTopic[];\n    readonly nextStep?: string;\n    readonly sessionId?: string;\n    readonly createdAt: number;\n}',
+  },
+  {
+    name: 'InteractionSentiment',
+    declaration: 'export type InteractionSentiment = \'positive\' | \'neutral\' | \'negative\';',
   },
   {
     name: 'InvariantFailure',
@@ -4235,6 +4569,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface KvUnitDescriptor {\n    readonly name: string;\n    readonly version: number;\n    readonly tables: readonly string[];\n    readonly hasGlobal: boolean;\n    readonly layout?: \'single\' | \'per-record\';\n}',
   },
   {
+    name: 'LifecycleCount',
+    declaration: 'export interface LifecycleCount {\n    readonly lifecycle: ClientLifecycle;\n    readonly count: number;\n}',
+  },
+  {
     name: 'LlmAdapter',
     declaration: 'export abstract class LlmAdapter {\n    providerInfo(provider: string): LlmProviderInfo;\n    providerRetryPolicy(_provider: string): ResolvedRetryPolicy | undefined;\n    imageRequestPricing(_provider: string, _model: string): LlmImageRequestPricing | undefined;\n    listModels(_provider: string): Promise<readonly LlmModelInfo[]>;\n    resolveModel(provider: string, model: string, _signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall>;\n    abstract stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
   },
@@ -4297,6 +4635,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LlmRuntime',
     declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<PreparedLlmCall>;\n    stream(options: GenerateOptions): AsyncIterable<StreamChunk>;\n}',
+  },
+  {
+    name: 'LogInteractionRequest',
+    declaration: 'export interface LogInteractionRequest {\n    readonly clientId: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly kind?: InteractionKind;\n    readonly occurredAt?: number;\n    readonly durationMin?: number;\n    readonly summary: string;\n    readonly sentiment?: InteractionSentiment;\n    readonly topics?: readonly AdvisoryTopic[];\n    readonly nextStep?: string;\n    readonly sessionId?: string;\n}',
   },
   {
     name: 'LspHover',
@@ -4471,6 +4813,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface ModelReasoningEffort {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n}',
   },
   {
+    name: 'MoveOpportunityRequest',
+    declaration: 'export interface MoveOpportunityRequest {\n    readonly opportunityId: OpportunityId;\n    readonly to: OpportunityStage;\n    readonly probability?: number;\n    readonly closeReason?: string;\n    readonly notes?: string;\n}',
+  },
+  {
     name: 'ObjectJsonSchema',
     declaration: 'export type ObjectJsonSchema = JsonSchemaNode & {\n    type: \'object\';\n};',
   },
@@ -4479,8 +4825,28 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface OneShotSubagentDescriptorData extends SubagentDescriptorBase {\n    readonly mode: \'one-shot\';\n    readonly label?: string;\n}',
   },
   {
+    name: 'OpportunityId',
+    declaration: 'export type OpportunityId = Branded<\'crm-opportunity\'>;',
+  },
+  {
+    name: 'OpportunityListQuery',
+    declaration: 'export interface OpportunityListQuery {\n    readonly clientId?: ClientId;\n    readonly stage?: OpportunityStage;\n    readonly advisorId?: AdvisorId;\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'OpportunityRecord',
+    declaration: 'export interface OpportunityRecord {\n    readonly id: OpportunityId;\n    readonly clientId: ClientId;\n    readonly advisorId: AdvisorId;\n    readonly productKind: ProductKind;\n    readonly productName?: string;\n    readonly stage: OpportunityStage;\n    readonly amount: number;\n    readonly currency: string;\n    readonly probability: number;\n    readonly expectedCloseAt?: number;\n    readonly closedAt?: number;\n    readonly closeReason?: string;\n    readonly notes?: string;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'OpportunityStage',
+    declaration: 'export type OpportunityStage = \'new\' | \'qualified\' | \'proposal\' | \'negotiation\' | \'won\' | \'lost\' | \'abandoned\';',
+  },
+  {
     name: 'PermissionSelect',
     declaration: 'export interface PermissionSelect {\n    options: PresetOption[];\n    currentValue: string;\n}',
+  },
+  {
+    name: 'PipelineSnapshot',
+    declaration: 'export interface PipelineSnapshot {\n    readonly advisorId?: AdvisorId;\n    readonly stages: readonly StageSummary[];\n    readonly openCount: number;\n    readonly openAmount: number;\n    readonly weightedForecast: number;\n    readonly wonCount: number;\n    readonly wonAmount: number;\n    readonly lostCount: number;\n    readonly winRate: number | null;\n}',
   },
   {
     name: 'PostToolDecision',
@@ -4529,6 +4895,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PreToolDecision',
     declaration: 'export type PreToolDecision = {\n    kind: \'allow\';\n} | {\n    kind: \'deny\';\n    reason: string;\n} | {\n    kind: \'ask\';\n    reason?: string;\n};',
+  },
+  {
+    name: 'ProductDiscussion',
+    declaration: 'export interface ProductDiscussion {\n    readonly name: string;\n    readonly kind: ProductKind;\n    readonly riskLevel: ProductRiskLevel;\n}',
+  },
+  {
+    name: 'ProductKind',
+    declaration: 'export type ProductKind = \'fund\' | \'insurance\' | \'structured\' | \'retirement\' | \'education\' | \'tax\' | \'advisory_fee\';',
+  },
+  {
+    name: 'ProductRiskLevel',
+    declaration: 'export type ProductRiskLevel = \'R1\' | \'R2\' | \'R3\' | \'R4\' | \'R5\';',
+  },
+  {
+    name: 'ProfileExpiryNotice',
+    declaration: 'export interface ProfileExpiryNotice {\n    readonly clientId: ClientId;\n    readonly name: string;\n    readonly expiresAt: number;\n}',
+  },
+  {
+    name: 'ProfileStatus',
+    declaration: 'export type ProfileStatus = \'valid\' | \'expiring\' | \'expired\' | \'missing\';',
   },
   {
     name: 'ProjectionChangeListener',
@@ -4599,6 +4985,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
   },
   {
+    name: 'RecordConsultationRequest',
+    declaration: 'export interface RecordConsultationRequest {\n    readonly clientId: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly interactionId?: InteractionId;\n    readonly occurredAt?: number;\n    readonly topics?: readonly AdvisoryTopic[];\n    readonly products?: readonly ProductDiscussion[];\n    readonly recommendations?: readonly string[];\n    readonly followUpRequired?: boolean;\n    readonly summary?: string;\n    readonly sessionId?: string;\n}',
+  },
+  {
     name: 'RedactedSecret',
     declaration: 'export interface RedactedSecret {\n    path: string[];\n    set: boolean;\n}',
   },
@@ -4661,6 +5051,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ResumeAgentOptions',
     declaration: 'export interface ResumeAgentOptions {\n    readonly resumeSessionId: SessionId;\n    readonly agentOptions?: AgentOptions;\n    readonly signal?: AbortSignal;\n    readonly setup?: AgentSetup;\n}',
+  },
+  {
+    name: 'RiskProfile',
+    declaration: 'export interface RiskProfile {\n    readonly tolerance: RiskTolerance;\n    readonly score?: number;\n    readonly assessedAt: number;\n    readonly expiresAt: number;\n}',
+  },
+  {
+    name: 'RiskTolerance',
+    declaration: 'export type RiskTolerance = \'C1\' | \'C2\' | \'C3\' | \'C4\' | \'C5\';',
   },
   {
     name: 'RunnerFailureRule',
@@ -5307,6 +5705,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SkillViewOptions extends SkillLookupOptions {\n    readonly scope?: ScopeKey | undefined;\n}',
   },
   {
+    name: 'SourceListing',
+    declaration: 'export interface SourceListing extends DiscoveredSession {\n    readonly imported: boolean;\n}',
+  },
+  {
+    name: 'SourcePreview',
+    declaration: 'export interface SourcePreview {\n    readonly provider: ExternalProviderId;\n    readonly sourceId: string;\n    readonly title?: string;\n    readonly model?: string;\n    readonly workspaceDir?: string;\n    readonly startedAt?: number;\n    readonly skippedRecords: number;\n    readonly oversizedRecords: number;\n    readonly totalEntries: number;\n    readonly totalToolCalls: number;\n    readonly messages: readonly SourcePreviewMessage[];\n    readonly hasMore: boolean;\n}',
+  },
+  {
+    name: 'SourcePreviewMessage',
+    declaration: 'export interface SourcePreviewMessage {\n    readonly role: \'user\' | \'assistant\';\n    readonly text: string;\n    readonly at?: number;\n    readonly toolCalls?: {\n        readonly name: string;\n        readonly argsPreview: string;\n    }[];\n}',
+  },
+  {
     name: 'SpawnTeammateRequest',
     declaration: 'export interface SpawnTeammateRequest {\n    readonly name: string;\n    readonly description: string;\n    readonly prompt: ContentBlock[];\n    readonly context: \'fresh\' | \'fork\';\n    readonly provider: string;\n    readonly signal: AbortSignal;\n}',
   },
@@ -5329,6 +5739,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SpillSource',
     declaration: 'export interface SpillSource {\n    toolName: string;\n    callId: ToolCallId;\n    label: string;\n}',
+  },
+  {
+    name: 'StageSummary',
+    declaration: 'export interface StageSummary {\n    readonly stage: OpportunityStage;\n    readonly count: number;\n    readonly amount: number;\n    readonly weighted: number;\n}',
   },
   {
     name: 'StorageBackend',
@@ -5495,6 +5909,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface SubprocessTerminalSpawnSpec {\n    argv: readonly string[];\n    cwd: string;\n    env?: Record<string, string> | undefined;\n    rows: number;\n    cols: number;\n    graceMs: number;\n    signal?: AbortSignal | undefined;\n}',
   },
   {
+    name: 'SuitabilityAssessment',
+    declaration: 'export interface SuitabilityAssessment {\n    readonly product: ProductDiscussion;\n    readonly verdict: SuitabilityVerdict;\n    readonly rationale: string;\n}',
+  },
+  {
+    name: 'SuitabilityAuditEntry',
+    declaration: 'export interface SuitabilityAuditEntry {\n    readonly clientId: ClientId;\n    readonly clientName: string;\n    readonly consultationId: ConsultationId;\n    readonly occurredAt: number;\n    readonly product: ProductDiscussion;\n    readonly verdict: SuitabilityVerdict;\n    readonly rationale: string;\n}',
+  },
+  {
+    name: 'SuitabilityVerdict',
+    declaration: 'export type SuitabilityVerdict = \'matched\' | \'product-exceeds-profile\' | \'assessment-expired\' | \'missing-profile\';',
+  },
+  {
     name: 'SurfaceEvent',
     declaration: 'export type SurfaceEvent = SessionEvent<SurfaceEventType> & {\n    surfaceOp: SurfaceOp;\n};',
   },
@@ -5511,6 +5937,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SurfaceOp = \'append\' | {\n    op: \'replace\';\n    start: number;\n    end: number;\n};',
   },
   {
+    name: 'SyncOutcome',
+    declaration: 'export interface SyncOutcome {\n    readonly results: readonly SyncResult[];\n    readonly imported: number;\n    readonly upToDate: number;\n    readonly conflicts: number;\n    readonly errors: number;\n    readonly deferred: number;\n}',
+  },
+  {
+    name: 'SyncResult',
+    declaration: 'export interface SyncResult {\n    readonly provider: ExternalProviderId;\n    readonly sourceId: string;\n    readonly status: \'imported\' | \'up-to-date\' | \'conflict\' | \'error\';\n    readonly error?: string;\n}',
+  },
+  {
     name: 'SystemPrompt',
     declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
   },
@@ -5521,6 +5955,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'TableValueOf',
     declaration: 'export type TableValueOf<S extends DomainSpec, N extends keyof S[\'tables\']> = S[\'tables\'][N] extends DomainTableSpec<string, infer V> ? V : never;',
+  },
+  {
+    name: 'TaskId',
+    declaration: 'export type TaskId = Branded<\'crm-task\'>;',
+  },
+  {
+    name: 'TaskKind',
+    declaration: 'export type TaskKind = \'follow_up\' | \'meeting_prep\' | \'risk_review\' | \'compliance_check\' | \'document_delivery\' | \'report_delivery\' | \'client_care\';',
+  },
+  {
+    name: 'TaskListQuery',
+    declaration: 'export interface TaskListQuery {\n    readonly advisorId?: AdvisorId;\n    readonly clientId?: ClientId;\n    readonly kind?: TaskKind;\n    readonly status?: TaskStatus;\n    readonly dueBefore?: number;\n    readonly overdue?: boolean;\n    readonly limit?: number;\n}',
+  },
+  {
+    name: 'TaskLoadSnapshot',
+    declaration: 'export interface TaskLoadSnapshot {\n    readonly advisorId?: AdvisorId;\n    readonly at: number;\n    readonly open: number;\n    readonly overdue: number;\n    readonly byPriority: readonly {\n        readonly priority: TaskPriority;\n        readonly count: number;\n    }[];\n    readonly dueSoon: readonly DueTaskSummary[];\n}',
+  },
+  {
+    name: 'TaskPriority',
+    declaration: 'export type TaskPriority = \'low\' | \'normal\' | \'high\' | \'urgent\';',
+  },
+  {
+    name: 'TaskRecord',
+    declaration: 'export interface TaskRecord {\n    readonly id: TaskId;\n    readonly clientId?: ClientId;\n    readonly opportunityId?: OpportunityId;\n    readonly advisorId: AdvisorId;\n    readonly kind: TaskKind;\n    readonly title: string;\n    readonly dueAt: number;\n    readonly status: TaskStatus;\n    readonly priority: TaskPriority;\n    readonly notes?: string;\n    readonly completedAt?: number;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'TaskStatus',
+    declaration: 'export type TaskStatus = \'open\' | \'done\' | \'cancelled\';',
   },
   {
     name: 'TeamId',
@@ -5663,6 +6125,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface TokenUsage {\n    inputTokens: number;\n    outputTokens: number;\n    totalTokens?: number;\n    cacheReadTokens?: number;\n    cacheWriteTokens?: number;\n    reasoningTokens?: number;\n}',
   },
   {
+    name: 'ToleranceAum',
+    declaration: 'export interface ToleranceAum {\n    readonly tolerance: RiskTolerance | null;\n    readonly count: number;\n    readonly aum: number;\n}',
+  },
+  {
     name: 'ToolCallKind',
     declaration: 'export type ToolCallKind = \'read\' | \'edit\' | \'delete\' | \'move\' | \'search\' | \'execute\' | \'fetch\' | \'other\';',
   },
@@ -5769,6 +6235,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ToolSchema',
     declaration: 'export interface ToolSchema {\n    name: string;\n    description: string;\n    parameters: Record<string, unknown>;\n}',
+  },
+  {
+    name: 'TranslationSpec',
+    declaration: 'export interface TranslationSpec {\n    readonly fallbackModel: string;\n    readonly includeReasoning: boolean;\n    readonly maxToolResultChars: number;\n    readonly redactSecrets: boolean;\n}',
   },
   {
     name: 'TurnEndCancelCause',

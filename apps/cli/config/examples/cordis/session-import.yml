@@ -1,0 +1,37 @@
+# Opt-in overlay that mounts the two browser management consoles plus the
+# session-import service they build on. Applies as a patch over any base
+# profile: `dsh <profile> --patch` with this file, or copy the rows into your
+# profile's own cordis.patch.yml.
+#
+# session-import reads the external agent stores (Claude Code / Codex / ZCode /
+# MiniMax) read-only; imports land in the profile's session persistence
+# backend. The CRM rows mount the investment-advisory CRM service and its
+# console; the crm service rides the base bundle's storage stack.
+
+- insert:
+    - id: session-import
+      name: '@deepseek-ai/dsh-session-import'
+      config:
+        # Homes default to ~/.claude, ~/.codex, ~/.zcode, ~/.minimax when omitted.
+        # claudeHome: /Users/me/.claude
+        # codexHome: /Users/me/.codex
+        # zcodeHome: /Users/me/.zcode
+        # minimaxHome: /Users/me/.minimax
+        # Recorded when a source conversation reports no model id.
+        # defaultModel: deepseek-chat
+        redactSecrets: true
+    # Browser console at /session-import-console (provider tabs, content
+    # search, chat preview, one-click import, batch sync). Needs no
+    # configuration; carries no authentication of its own — loopback only.
+    - id: session-import-console
+      name: '@deepseek-ai/dsh-session-import-console'
+
+    # The CRM service (clients, pipeline, tasks, suitability) over the base
+    # storage stack, plus its browser console at /crm-console.
+    - id: crm
+      name: '@deepseek-ai/dsh-crm'
+      config:
+        # Required: suitability-assessment validity window, in days (730 = 2y).
+        riskProfileValidityDays: 730
+    - id: crm-console
+      name: '@deepseek-ai/dsh-crm-console'

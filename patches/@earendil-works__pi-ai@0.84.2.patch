@@ -1,0 +1,62 @@
+diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
+index 591beb84b1be68d77c920fa65a25af1267ce97c2..93448aa699db55a9d91d5fd138175caf90cc1068 100644
+--- a/dist/api/anthropic-messages.js
++++ b/dist/api/anthropic-messages.js
+@@ -770,6 +770,9 @@ function buildParams(model, context, isOAuthToken, options) {
+         ];
+     }
+     // Configure thinking mode: adaptive, budget-based, or explicitly disabled.
++    // Detect non-Anthropic providers that implement the Anthropic Messages API
++    // but may not support newer fields like `display` or `output_config`.
++    const isNonAnthropicProvider = model.baseUrl && !model.baseUrl.includes("api.anthropic.com");
+     if (model.reasoning) {
+         if (options?.thinkingEnabled) {
+             // Default to "summarized" so Opus 4.7 and Mythos Preview behave like
+@@ -777,22 +780,37 @@ function buildParams(model, context, isOAuthToken, options) {
+             const display = options.thinkingDisplay ?? "summarized";
+             if (model.compat?.forceAdaptiveThinking === true) {
+                 // Adaptive thinking: Claude decides when and how much to think.
+-                params.thinking = { type: "adaptive", display };
++                if (isNonAnthropicProvider) {
++                    params.thinking = { type: "adaptive" };
++                }
++                else {
++                    params.thinking = { type: "adaptive", display };
++                }
+                 if (options.effort) {
+                     // The Anthropic SDK types can lag newly supported effort values such as "xhigh".
+-                    params.output_config =
+-                        options.effort === "xhigh"
+-                            ? { effort: options.effort }
+-                            : { effort: options.effort };
++                    if (!isNonAnthropicProvider) {
++                        params.output_config =
++                            options.effort === "xhigh"
++                                ? { effort: options.effort }
++                                : { effort: options.effort };
++                    }
+                 }
+             }
+             else {
+                 // Budget-based thinking for older models
+-                params.thinking = {
+-                    type: "enabled",
+-                    budget_tokens: options.thinkingBudgetTokens || 1024,
+-                    display,
+-                };
++                if (isNonAnthropicProvider) {
++                    params.thinking = {
++                        type: "enabled",
++                        budget_tokens: options.thinkingBudgetTokens || 1024,
++                    };
++                }
++                else {
++                    params.thinking = {
++                        type: "enabled",
++                        budget_tokens: options.thinkingBudgetTokens || 1024,
++                        display,
++                    };
++                }
+             }
+         }
+         else if (options?.thinkingEnabled === false && model.thinkingLevelMap?.off !== null) {

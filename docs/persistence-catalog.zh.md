@@ -679,6 +679,27 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/session/session-title-llm/src/index.ts:43`](../packages/session/session-title-llm/src/index.ts)
 
+### `session-import/*`
+
+<a id="session-importsource--log-only"></a>
+
+#### `session-import/source` — log-only
+
+```ts persistence-catalog
+/**
+ * Log-only provenance for a session whose history was imported from an
+ * external code agent's store. Exactly one per imported session, at seq 1;
+ * `redactions` counts credential replacements applied before the log was
+ * written and `skippedRecords` counts source records that were dropped.
+ * @dshScopeScan unsupported
+ */
+'session-import/source': SessionImportSourceEventData
+```
+
+字段 `oversizedRecords`：超过单行大小上限而被整行丢弃的来源行计数（与 `skippedRecords` 的"不可解析/未识别"语义区分）。
+
+来源：[`packages/import/session-import/src/types.ts:40`](../packages/import/session-import/src/types.ts)
+
 ### `session-log-deepseek/*`
 
 <a id="session-log-deepseekdelivery-accepted--log-only"></a>
