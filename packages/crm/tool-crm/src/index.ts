@@ -1,9 +1,9 @@
 /**
  * Model-facing CRM tools (`crm_*`) over `ctx.crm`: client book, advisor
  * roster, interactions, suitability-audited consultations, the opportunity
- * pipeline, follow-up tasks, and read-model reports. The tool layer owns
- * wire conversion (ISO 8601, enum vocabularies) only; business rules live
- * in the service.
+ * pipeline, follow-up tasks, advisory plans, and read-model reports. The tool
+ * layer owns wire conversion (ISO 8601, enum vocabularies) only; business
+ * rules live in the service.
  * @module @deepseek-ai/dsh-tool-crm
  */
 
@@ -11,6 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { registerClientTools } from './tools-client.ts'
 import { registerEngagementTools } from './tools-engagement.ts'
 import { registerPipelineTools } from './tools-pipeline.ts'
+import { registerPlanTools } from './tools-plans.ts'
 import { registerReportTool } from './tools-report.ts'
 
 export const name = 'tool-crm'
@@ -24,5 +25,6 @@ export function apply(ctx: Context): void {
   registerClientTools(ctx)
   registerEngagementTools(ctx)
   registerPipelineTools(ctx)
+  registerPlanTools(ctx)
   registerReportTool(ctx)
 }

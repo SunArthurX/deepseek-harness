@@ -5,6 +5,10 @@
  * `dsh-session-import`. Response bodies are always
  * `{ ok: true, data } | { ok: false, error }` so the page never parses
  * status codes.
+ *
+ * The dispatch table is data, not a chain: each entry declares its allowed
+ * method, whether sub-paths are accepted, the query/body parsers, and the
+ * service call. Adding an endpoint is one new entry — no central edit.
  * @module @deepseek-ai/dsh-session-import-console/api
  */
 
@@ -29,6 +33,28 @@ export interface ApiResponse {
 /** The providers the console offers as tabs; the service is the authority. */
 export const CONSOLE_PROVIDERS: readonly ExternalProviderId[] = ['claude-code', 'codex', 'zcode', 'minimax']
 
+/** One resource name as it appears in the URL after `/api/`. */
+type Resource = 'providers' | 'sources' | 'preview' | 'sync' | 'import'
+
+/** The query and body arguments a `handle` function sees. */
+interface ParsedRequest {
+  readonly query: unknown
+  readonly body: unknown
+}
+
+/**
+ * One declarative entry of the dispatch table. The query/body parsers run
+ * before `handle`; their return values are the typed arguments the service
+ * call sees. Anything they `throw` becomes the error envelope.
+ */
+interface RouteHandler {
+  readonly method: 'GET' | 'POST'
+  readonly exact: boolean
+  readonly parseQuery?: (query: URLSearchParams) => unknown
+  readonly parseBody?: (body: Record<string, unknown> | undefined) => unknown
+  readonly handle: (service: SessionImportService, parsed: ParsedRequest) => Promise<unknown>
+}
+
 /**
  * Route one API request to a service call.
  * @param service - the session-import service the console mounts beside.
@@ -43,71 +69,142 @@ export async function dispatchApi(service: SessionImportService, request: ApiReq
   }
 }
 
-/** The routing table proper; every throw below becomes the error envelope. */
-async function route(service: SessionImportService, request: ApiRequest): Promise<unknown> {
+/** Look up the table entry, validate the method/path, run parsers, and call the handler. */
+function route(service: SessionImportService, request: ApiRequest): Promise<unknown> {
   const [resource, ...rest] = request.segments
-  if (resource === 'providers') {
-    if (request.method !== 'GET') throw new Error('providers: GET only')
-    return CONSOLE_PROVIDERS
+  if (resource === undefined) throw new Error('unknown resource ""')
+  const entry = ROUTES[resource as Resource]
+  if (request.method !== entry.method) throw new Error(`${resource}: ${entry.method} only`)
+  if (entry.exact && rest.length > 0) throw new Error(`${resource}: no sub-paths`)
+  const query = entry.parseQuery !== undefined ? entry.parseQuery(request.query) : undefined
+  const body = entry.parseBody !== undefined ? entry.parseBody(request.body) : undefined
+  return entry.handle(service, { query, body })
+}
+
+/** The dispatch table proper; every throw below becomes the error envelope. */
+const ROUTES: Record<Resource, RouteHandler> = {
+  providers: {
+    method: 'GET',
+    exact: true,
+    handle: () => Promise.resolve(CONSOLE_PROVIDERS),
+  },
+  sources: {
+    method: 'GET',
+    exact: true,
+    parseQuery: parseSourcesQuery,
+    handle: (service, { query }) => service.listSources(query as Parameters<SessionImportService['listSources']>[0]),
+  },
+  preview: {
+    method: 'GET',
+    exact: true,
+    parseQuery: parsePreviewQuery,
+    handle: (service, { query }) => {
+      const q = query as PreviewQuery
+      return service.previewSource(
+        { provider: q.provider, sourceId: q.sourceId },
+        { ...(q.maxMessages !== undefined ? { maxMessages: q.maxMessages } : {}) },
+      )
+    },
+  },
+  sync: {
+    method: 'POST',
+    exact: true,
+    parseBody: parseSyncBody,
+    handle: (service, { body }) => service.syncAll(body as Parameters<SessionImportService['syncAll']>[0]),
+  },
+  import: {
+    method: 'POST',
+    exact: true,
+    parseBody: parseImportBody,
+    handle: (service, { body }) => service.importSource(body as Parameters<SessionImportService['importSource']>[0]),
+  },
+}
+
+/* ── Typed parse-result shapes, used by the table handlers above. ── */
+
+interface SourcesQuery {
+  readonly provider?: ExternalProviderId
+  readonly query?: string
+  readonly limit?: number
+}
+
+interface PreviewQuery {
+  readonly provider: ExternalProviderId
+  readonly sourceId: string
+  readonly maxMessages?: number
+}
+
+interface SyncBody {
+  readonly provider?: ExternalProviderId
+  readonly limit?: number
+}
+
+interface ImportBody {
+  readonly provider: ExternalProviderId
+  readonly sourceId: string
+  readonly targetId?: string
+  readonly force?: true
+}
+
+/* ── Query / body parsers. Each throws on invalid input; the message is the API's error string. ── */
+
+function parseSourcesQuery(query: URLSearchParams): SourcesQuery {
+  const providerRaw = query.get('provider')
+  const queryText = query.get('query') ?? undefined
+  const limitRaw = query.get('limit')
+  const limit = limitRaw === null ? undefined : Number(limitRaw)
+  if (providerRaw !== null && !isProvider(providerRaw)) throw new Error(`unknown provider "${providerRaw}"`)
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 0)) {
+    throw new Error('limit must be a non-negative integer')
   }
-  if (resource === 'sources') {
-    if (request.method !== 'GET') throw new Error('sources: GET only')
-    const provider = request.query.get('provider')
-    const query = request.query.get('query') ?? undefined
-    const limitRaw = request.query.get('limit')
-    const limit = limitRaw === null ? undefined : Number(limitRaw)
-    if (provider !== null && !isProvider(provider)) throw new Error(`unknown provider "${provider}"`)
-    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 0)) throw new Error('limit must be a non-negative integer')
-    const filtered: { provider?: ExternalProviderId; query?: string; limit?: number } = {}
-    if (provider !== null) filtered.provider = provider
-    if (query !== undefined && query.length > 0) filtered.query = query
-    if (limit !== undefined) filtered.limit = limit
-    return service.listSources(filtered)
+  return {
+    ...(providerRaw !== null ? { provider: providerRaw } : {}),
+    ...(queryText !== undefined && queryText.length > 0 ? { query: queryText } : {}),
+    ...(limit !== undefined ? { limit } : {}),
   }
-  if (resource === 'preview') {
-    if (request.method !== 'GET') throw new Error('preview: GET only')
-    if (rest.length > 0) throw new Error('preview: no sub-paths')
-    const provider = request.query.get('provider')
-    const sourceId = request.query.get('sourceId')
-    if (provider === null) throw new Error('preview: `provider` is required')
-    if (!isProvider(provider)) throw new Error(`unknown provider "${provider}"`)
-    if (sourceId === null || sourceId.length === 0) throw new Error('preview: `sourceId` is required')
-    const maxRaw = request.query.get('maxMessages')
-    const maxMessages = maxRaw === null ? undefined : Number(maxRaw)
-    if (maxMessages !== undefined && (!Number.isSafeInteger(maxMessages) || maxMessages < 1)) {
-      throw new Error('maxMessages must be a positive integer')
-    }
-    return service.previewSource({ provider, sourceId }, { ...(maxMessages !== undefined ? { maxMessages } : {}) })
+}
+
+function parsePreviewQuery(query: URLSearchParams): PreviewQuery {
+  const provider = query.get('provider')
+  if (provider === null) throw new Error('preview: `provider` is required')
+  if (!isProvider(provider)) throw new Error(`unknown provider "${provider}"`)
+  const sourceId = query.get('sourceId')
+  if (sourceId === null || sourceId.length === 0) throw new Error('preview: `sourceId` is required')
+  const maxRaw = query.get('maxMessages')
+  const maxMessages = maxRaw === null ? undefined : Number(maxRaw)
+  if (maxMessages !== undefined && (!Number.isSafeInteger(maxMessages) || maxMessages < 1)) {
+    throw new Error('maxMessages must be a positive integer')
   }
-  if (resource === 'sync') {
-    if (request.method !== 'POST') throw new Error('sync: POST only')
-    if (rest.length > 0) throw new Error('sync: no sub-paths')
-    const provider = request.body === undefined ? undefined : optionalString(request.body, 'provider')
-    if (provider !== undefined && !isProvider(provider)) throw new Error(`unknown provider "${provider}"`)
-    const limitRaw = request.body === undefined ? undefined : request.body['limit']
-    if (limitRaw !== undefined && (!Number.isSafeInteger(limitRaw) || typeof limitRaw !== 'number' || limitRaw < 0)) {
-      throw new Error('sync: `limit` must be a non-negative integer')
-    }
-    return service.syncAll({
-      ...(provider !== undefined ? { provider } : {}),
-      ...(limitRaw !== undefined ? { limit: limitRaw } : {}),
-    })
+  return { provider, sourceId, ...(maxMessages !== undefined ? { maxMessages } : {}) }
+}
+
+function parseSyncBody(body: Record<string, unknown> | undefined): SyncBody {
+  const provider = body === undefined ? undefined : optionalString(body, 'provider')
+  if (provider !== undefined && !isProvider(provider)) throw new Error(`unknown provider "${provider}"`)
+  const limitRaw = body === undefined ? undefined : body['limit']
+  if (limitRaw !== undefined && (typeof limitRaw !== 'number' || !Number.isSafeInteger(limitRaw) || limitRaw < 0)) {
+    throw new Error('sync: `limit` must be a non-negative integer')
   }
-  if (resource === 'import') {
-    if (request.method !== 'POST') throw new Error('import: POST only')
-    if (rest.length > 0) throw new Error('import: no sub-paths')
-    const provider = readProvider(request.body)
-    const sourceId = readSourceId(request.body)
-    const targetId = optionalString(request.body, 'targetId')
-    const force = request.body !== undefined && request.body['force'] === true
-    return service.importSource({
-      provider,
-      sourceId,
-      ...(targetId !== undefined ? { targetId } : {}),
-      ...(force ? { force: true } : {}),
-    })
+  return {
+    ...(provider !== undefined ? { provider } : {}),
+    ...(typeof limitRaw === 'number' ? { limit: limitRaw } : {}),
   }
-  throw new Error(`unknown resource "${resource ?? ''}"`)
+}
+
+function parseImportBody(body: Record<string, unknown> | undefined): ImportBody {
+  const providerRaw = body === undefined ? undefined : optionalString(body, 'provider')
+  if (providerRaw === undefined) throw new Error('import: `provider` is required')
+  if (!isProvider(providerRaw)) throw new Error(`unknown provider "${providerRaw}"`)
+  const sourceId = body === undefined ? undefined : optionalString(body, 'sourceId')
+  if (sourceId === undefined) throw new Error('import: `sourceId` is required')
+  const targetId = body === undefined ? undefined : optionalString(body, 'targetId')
+  const force = body !== undefined && body['force'] === true
+  return {
+    provider: providerRaw,
+    sourceId,
+    ...(targetId !== undefined ? { targetId } : {}),
+    ...(force ? { force: true } : {}),
+  }
 }
 
 /** Whether a string names a provider the console knows. */
@@ -115,24 +212,9 @@ function isProvider(value: string): value is ExternalProviderId {
   return (CONSOLE_PROVIDERS as readonly string[]).includes(value)
 }
 
-/** Read the required provider field off a JSON body. */
-function readProvider(body: Record<string, unknown> | undefined): ExternalProviderId {
-  const value = optionalString(body, 'provider')
-  if (value === undefined) throw new Error('import: `provider` is required')
-  if (!isProvider(value)) throw new Error(`unknown provider "${value}"`)
-  return value
-}
-
-/** Read the required sourceId field off a JSON body. */
-function readSourceId(body: Record<string, unknown> | undefined): string {
-  const value = optionalString(body, 'sourceId')
-  if (value === undefined) throw new Error('import: `sourceId` is required')
-  return value
-}
-
 /** Read one optional non-empty string field off a JSON body. */
-function optionalString(body: Record<string, unknown> | undefined, key: string): string | undefined {
-  const value = body === undefined ? undefined : body[key]
+function optionalString(body: Record<string, unknown>, key: string): string | undefined {
+  const value = body[key]
   if (value === undefined || value === null) return undefined
   if (typeof value !== 'string' || value.length === 0) throw new Error(`import: \`${key}\` must be a non-empty string`)
   return value

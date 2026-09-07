@@ -603,7 +603,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/crm/crm/src/index.ts:235`](../packages/crm/crm/src/index.ts)
+Source: [`packages/crm/crm/src/index.ts:264`](../packages/crm/crm/src/index.ts)
 
 <a id="deepseek-aidsh-e2b"></a>
 

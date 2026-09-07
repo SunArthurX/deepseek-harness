@@ -81,7 +81,7 @@ async function baseBook(): Promise<{ advisorId: string; clientId: string }> {
 }
 
 describe('crm tool registration and export shape', () => {
-  it('registers all 18 crm_* tools and exports no default', async () => {
+  it('registers all 22 crm_* tools and exports no default', async () => {
     expect('default' in ToolCrm).toBe(false)
     const names = harness!.ctx.tools.schemas().map(s => s.name)
     const expected = [
@@ -91,6 +91,7 @@ describe('crm tool registration and export shape', () => {
       'crm_interaction_log', 'crm_interaction_list',
       'crm_opportunity_create', 'crm_opportunity_move', 'crm_opportunity_list',
       'crm_task_create', 'crm_task_list', 'crm_task_complete', 'crm_task_cancel', 'crm_task_reschedule',
+      'crm_plan_create', 'crm_plan_list', 'crm_plan_review', 'crm_plan_transition',
       'crm_report',
     ]
     expect(names).toEqual(expect.arrayContaining(expected))

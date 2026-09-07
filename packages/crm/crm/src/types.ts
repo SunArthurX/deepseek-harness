@@ -589,3 +589,19 @@ export interface ClientPatch {
     readonly assessedAt?: number
   }
 }
+
+export type {
+  AllocationDrift,
+  AllocationReview,
+  AllocationSleeve,
+  CreatePlanRequest,
+  DeductionDay,
+  PlanBase,
+  PlanId,
+  PlanKind,
+  PlanRecord,
+  PlanReview,
+  PlanStatus,
+  ProtectionGapPlan,
+  RecurringInvestmentPlan,
+} from './plan-types.ts'

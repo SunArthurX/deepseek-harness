@@ -286,7 +286,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
     writes: ['tool/call', 'durable crm domain records', 'tool/result'],
     async mount(ctx) {
       // The tools inject `crm`; boot the real service over an in-memory KV
-      // unit so all eighteen schemas register. Schemas do not depend on the
+      // unit so all twenty-two schemas register. Schemas do not depend on the
       // backend or the validity policy value.
       await ctx.plugin(Storage)
       ctx.storage.backend.register('catalog-memory', {
@@ -308,7 +308,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolCrm)
     },
     note:
-      'Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.',
+      'Twenty-two tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-bash-persistent',

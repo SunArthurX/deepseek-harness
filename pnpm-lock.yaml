@@ -4521,6 +4521,9 @@ importers:
       '@deepseek-ai/dsh-storage-domain':
         specifier: workspace:^
         version: link:../../storage/storage-domain
+      playwright:
+        specifier: ^1.61.1
+        version: 1.61.1
 
   packages/crm/tool-crm:
     devDependencies:

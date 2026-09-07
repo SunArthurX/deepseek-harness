@@ -1,5 +1,5 @@
 ---
-description: "dsh-crm 服务之上的面向模型 crm_* 工具：客户档案、顾问名册、互动记录、适当性审计咨询、商机管线、跟进任务与读模型报表，供组装代理 CRM 表面的用户与维护者参考。"
+description: "dsh-crm 服务之上的面向模型 crm_* 工具：客户档案、顾问名册、互动记录、适当性审计咨询、商机管线、跟进任务、投顾方案与读模型报表，供组装代理 CRM 表面的用户与维护者参考。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-crm` 给代理 18 个基于持久顾问 CRM 的 `crm_*` 工具：注册与列出顾问；创建、搜索、360° 读取与更新客户；记录与列出互动；记录带适当性审计的咨询；开启、推进与列出管线商机；安排、列出、完成、取消与改期跟进任务；以及运行管线、客户簿、任务负载与适当性报表。工具层只负责线上转换——ISO 8601 时间戳、封闭枚举词汇、规范记录序列化——而每条业务规则都留在 [`dsh-crm`](../crm/README.zh.md)。
+`dsh-tool-crm` 给代理 22 个基于持久顾问 CRM 的 `crm_*` 工具：注册与列出顾问；创建、搜索、360° 读取与更新客户；记录与列出互动；记录带适当性审计的咨询；开启、推进与列出管线商机；安排、列出、完成、取消与改期跟进任务；创建、列出、推进与评审三类投顾方案（定投、资产配置、保障缺口）；以及运行管线、客户簿、任务负载与适当性报表。工具层只负责线上转换——ISO 8601 时间戳、封闭枚举词汇、规范记录序列化——而每条业务规则都留在 [`dsh-crm`](../crm/README.zh.md)。
 
 ## 目录
 
@@ -56,6 +56,7 @@ kind: "package-reference"
 | `crm_consultation_record` | 带逐产品适当性判定的正式咨询 |
 | `crm_opportunity_create` / `crm_opportunity_move` / `crm_opportunity_list` | 管线作业 |
 | `crm_task_create` / `crm_task_list` / `crm_task_complete` / `crm_task_cancel` / `crm_task_reschedule` | 跟进纪律 |
+| `crm_plan_create` / `crm_plan_list` / `crm_plan_review` / `crm_plan_transition` | 投顾方案：定投、资产配置、保障缺口 |
 | `crm_report` | pipeline \| book \| tasks \| suitability 聚合 |
 
 ### Timestamps and vocabularies
@@ -124,7 +125,7 @@ kind: "package-reference"
 
 #### What the model sees
 
-模型看到生成的 [`crm_*` 模式](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-crm)：18 个带封闭枚举词汇（容忍度、产品风险、阶段、类别、优先级、主题）、ISO 8601 时间戳参数、必填 id / 可选细节形态的工具。每个描述陈述其范围与失败纪律（例如咨询工具的"即使被阻断也要记录"指令）。
+模型看到生成的 [`crm_*` 模式](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-crm)：22 个带封闭枚举词汇（容忍度、产品风险、阶段、类别、优先级、主题）、ISO 8601 时间戳参数、必填 id / 可选细节形态的工具。每个描述陈述其范围与失败纪律（例如咨询工具的"即使被阻断也要记录"指令）。
 
 #### Token effect
 

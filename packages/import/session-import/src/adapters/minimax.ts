@@ -20,6 +20,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DiscoveredSession, ExternalConversation, ExternalEntry } from '../model.ts'
 import { argumentsJsonOf, callIdOf, isRecord, stripClaudeInjectedMarkup, stringField, toolResultTextOf } from './shared.ts'
+import type { ParseOptions, ProviderAdapter } from './registry.ts'
 
 /** Completed tool-call status code in the MiniMax wire format. */
 const TOOL_CALL_STATUS_COMPLETED = 2
@@ -268,4 +269,16 @@ export async function parseMinimaxSession(
   } finally {
     db.close()
   }
+}
+
+/** Normalized adapter surface for the service-class dispatch. */
+export const minimaxAdapter: ProviderAdapter = {
+  id: 'minimax',
+  defaultHomeSegment: '.minimax',
+  homeSettingKey: 'minimaxHome',
+  discover: discoverMinimaxSessions,
+  parse: (source, options: ParseOptions) => parseMinimaxSession(source.sourceId, {
+    maxFileBytes: options.maxFileBytes,
+    includeReasoning: options.includeReasoning,
+  }, options.home),
 }

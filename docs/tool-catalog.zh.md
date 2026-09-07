@@ -25,7 +25,7 @@
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具（来自 `@deepseek-ai/dsh-tool-jobs`）收集／停止；禁用 `enableRunInBackground` 配置（默认为 true）后，该参数会被完全移除。 |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`、`ctx.shell`、`ctx.systemPrompt`、`ctx.shellEnv`、`ctx.jobs at call time for run_in_background` | `tool/call`、`tool/result` | - | pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费方（由 `@deepseek-ai/dsh-pwsh-local` 等 PowerShell 执行器为 `ctx.shell` 提供后端）；除沙箱接口外，它逐项对应 bash 工具调用。使用 `run_in_background` 的运行会注册到通用 `ctx.jobs` 运行时，并通过 `job_*` 工具收集／停止；托管的 `DSH_*` 环境来自 `@deepseek-ai/dsh-shell-env`。每次调用都在新进程中运行，不使用持久 PTY 会话。路径采用原生 `C:\...` 形式，变量采用 `$env:NAME`。 |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`、`cordis_inspect_list`、`cordis_inspect_query`、`cordis_inspect_self`、`cordis_run`、`cordis_stop`、`cordis_undefine` | `ctx.tools`、`ctx.dynamicCordisRunner` | `tool/call`、`tool/result`、`process-local dynamic package lifecycle` | - | 不在任何随产品发布的树中，需要显式选择启用；动态 Package 代码可以访问真实运行时，见 .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md。该工具集注入 `@deepseek-ai/dsh-cordis-host-runner` 提供的 `ctx.dynamicCordisRunner`，后者拥有定义注册表和 vm 沙箱；组合缺少它时这些工具不会激活。运行中的 Package 在停止、undefine 或 DSH 重启前可以注册**额外的**模型可见工具；发生这类工具集变化时，系统会记录完整且有变动的请求头。 |
-| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | 投资顾问 CRM 服务之上的 18 个工具;全部业务规则(适当性、阶段状态机、引用完整性)都在 dsh-crm 中,因此模式在存储后端切换间保持稳定。服务的 `riskProfileValidityDays` 必填且无默认值,目录在此声明取值:730 天。 |
+| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_plan_create`, `crm_plan_list`, `crm_plan_review`, `crm_plan_transition`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | 投资顾问 CRM 服务之上的 22 个工具;全部业务规则(适当性、阶段状态机、引用完整性)都在 dsh-crm 中,因此模式在存储后端切换间保持稳定。服务的 `riskProfileValidityDays` 必填且无默认值,目录在此声明取值:730 天。 |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 bash 工具；部署组合提供 PTY 后端，并可覆盖面向模型的环境描述。 |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`、`ctx.terminals`、`an owning Agent at execution time` | `tool/call`、`PTY shell state`、`tool/result` | - | 一个按所有者隔离的持久 pwsh 工具，持久 bash 工具的 Windows 对应物；部署组合提供 pwsh 方言的 PTY 后端，并可覆盖面向模型的环境描述。 |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`、`ctx.fs` | `tool/call`、`fs/observed after view presence/absence, edit absence, or successful mutation`、`tool/result` | - | 基于文件系统 seam 的独立查看／创建／唯一字面量替换／按行插入工具；可与任何 shell 或终端接口组合。 |
@@ -1273,6 +1273,251 @@ Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/inde
   },
   "required": [
     "opportunityId",
+    "to"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_create`
+
+为客户创建一个投顾方案，初始为草稿状态。恰好一个类别及其载荷：定投（recurring-investment）需要 monthlyAmount/deductionDay/productName；资产配置（allocation）需要目标和为 100 的 sleeves 以及 rebalanceBand；保障缺口（protection-gap）需要 annualIncome/incomeYears 与已有保额。方案以草稿开始，用 crm_plan_transition 激活。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client the plan advises."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Plan kind; the payload fields must match it.",
+      "enum": [
+        "recurring-investment",
+        "allocation",
+        "protection-gap"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor; defaults to the client's owner."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics the plan touches.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Risk tolerance recorded at creation; defaults to the client's current profile.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    },
+    "monthlyAmount": {
+      "type": "number",
+      "description": "recurring-investment: monthly amount in CNY, positive."
+    },
+    "deductionDay": {
+      "type": "integer",
+      "description": "recurring-investment: deduction day of month, 1–28."
+    },
+    "productName": {
+      "type": "string",
+      "description": "recurring-investment: product the recurring buys target."
+    },
+    "productKind": {
+      "type": "string",
+      "description": "recurring-investment: product category; defaults to fund.",
+      "enum": [
+        "fund",
+        "insurance",
+        "structured",
+        "retirement",
+        "education",
+        "tax",
+        "advisory_fee"
+      ]
+    },
+    "endsAt": {
+      "type": "string",
+      "description": "recurring-investment: optional end of the plan, ISO 8601."
+    },
+    "sleeves": {
+      "type": "array",
+      "description": "allocation: at least one sleeve; target percents must sum to 100.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Sleeve label, e.g. 固收/权益/现金."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Product category the sleeve invests in.",
+            "enum": [
+              "fund",
+              "insurance",
+              "structured",
+              "retirement",
+              "education",
+              "tax",
+              "advisory_fee"
+            ]
+          },
+          "targetPercent": {
+            "type": "integer",
+            "description": "Target percent, 0–100; all sleeves must sum to 100."
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "targetPercent"
+        ]
+      }
+    },
+    "rebalanceBand": {
+      "type": "integer",
+      "description": "allocation: drift band in percentage points, 1–50; beyond it review flags rebalance."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "protection-gap: annual family income in CNY."
+    },
+    "incomeYears": {
+      "type": "integer",
+      "description": "protection-gap: years of income to protect, 1–30."
+    },
+    "existingLifeCover": {
+      "type": "number",
+      "description": "protection-gap: existing life-cover sum assured; defaults to 0."
+    },
+    "existingCriticalIllnessCover": {
+      "type": "number",
+      "description": "protection-gap: existing critical-illness cover; defaults to 0."
+    }
+  },
+  "required": [
+    "clientId",
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_list`
+
+列出投顾方案，按最近更新排序，可选按客户或状态过滤。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "status": {
+      "type": "string",
+      "description": "Restrict to one lifecycle status.",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_review`
+
+评估一个投顾方案。资产配置方案根据 currentValues（每个 sleeve 名称对应的当前组合百分比）计算对照带宽的每 sleeve 偏离；定投方案报告已过月数与已投金额；保障缺口方案回显建议保额。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "planId": {
+      "type": "string",
+      "description": "Plan to evaluate."
+    },
+    "currentValues": {
+      "type": "object",
+      "description": "allocation only: current portfolio percent keyed by sleeve name.",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "planId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_transition`
+
+推进一个投顾方案的生命周期：draft→active、active↔paused、active→completed，以及任何非终态→cancelled。终态（completed、cancelled）不可再变。
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "planId": {
+      "type": "string",
+      "description": "Plan to transition."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target status.",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ]
+    }
+  },
+  "required": [
+    "planId",
     "to"
   ]
 }

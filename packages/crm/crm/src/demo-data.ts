@@ -63,7 +63,7 @@ const ROSTER: readonly DemoClient[] = [
   { name: '陶丽君', kind: 'individual', lifecycle: 'onboarding', advisor: 'zhang', region: '南京', aum: 1_735_000, tolerance: 'C3', score: 61, assessedDaysAgo: 5, tags: ['代发工资', '长尾'] },
   { name: '金淑珍', kind: 'individual', lifecycle: 'active', advisor: 'lin', region: '青岛', aum: 1_959_000, tolerance: 'C3', score: 59, assessedDaysAgo: 90, tags: ['长尾', '固收偏好'] },
   { name: '邹雅雯', kind: 'individual', lifecycle: 'active', advisor: 'zhang', region: '天津', aum: 6_342_000, tolerance: 'C4', score: 77, assessedDaysAgo: 30, tags: ['转介绍', '基金定投'] },
-  { name: '范春燕', kind: 'individual', lifecycle: 'prospect', advisor: 'zhang', region: '合肥', aum: 0, tags: ['线上获客'] },
+  { name: '范春燕', kind: 'individual', lifecycle: 'prospect', advisor: 'zhang', region: '合肥', aum: 0, tolerance: 'C1', assessedDaysAgo: 12, tags: ['线上获客'] },
   { name: '华德福', kind: 'individual', lifecycle: 'active', advisor: 'lin', region: '宁波', aum: 727_000, tolerance: 'C2', score: 44, assessedDaysAgo: 250, tags: ['线上获客', '企业主'] },
   { name: '曹子墨', kind: 'individual', lifecycle: 'onboarding', advisor: 'zhang', region: '长沙', aum: 499_000, tolerance: 'C3', score: 57, assessedDaysAgo: 8, tags: ['退休规划', '转介绍'] },
   { name: '魏雅雯', kind: 'individual', lifecycle: 'active', advisor: 'lin', region: '厦门', aum: 2_948_000, tolerance: 'C4', score: 76, assessedDaysAgo: 70, tags: ['企业主', '长尾'] },
@@ -98,7 +98,7 @@ export async function loadDemoData(crm: CrmService, now: number = Date.now()): P
   const advisorOf = (key: 'zhang' | 'lin'): typeof zhang => key === 'zhang' ? zhang : lin
 
   // ── Clients: every lifecycle and every assessment story. ──────────────
-  const ids = new Map<string, import('./types.ts').ClientId>()
+  const ids: Record<string, import('./types.ts').ClientId> = {}
   for (const spec of ROSTER) {
     const client = await crm.createClient({
       name: spec.name,
@@ -119,7 +119,7 @@ export async function loadDemoData(crm: CrmService, now: number = Date.now()): P
       },
       tags: [...spec.tags],
     })
-    ids.set(spec.name, client.id)
+    ids[spec.name] = client.id
     // Re-stage the assessment to its story time (createClient stamps it now).
     if (spec.tolerance !== undefined && spec.assessedDaysAgo !== undefined) {
       await crm.updateClient(client.id, {
@@ -133,7 +133,11 @@ export async function loadDemoData(crm: CrmService, now: number = Date.now()): P
   }
 
   const id = (name: string): import('./types.ts').ClientId => {
-    const value = ids.get(name)
+    // The roster is fully loaded above; a miss would be a loader bug.
+    const value = ids[name]
+    /* v8 ignore next 2 -- the roster is fully loaded above, so this arm is
+       unreachable through the public loader; it only names the row if the
+       roster/map pairing is ever broken by a future edit. */
     if (value === undefined) throw new Error(`demo data: roster client '${name}' missing`)
     return value
   }
@@ -366,12 +370,11 @@ export async function loadDemoData(crm: CrmService, now: number = Date.now()): P
       productKind,
       productName,
       amount,
-      stage,
+      stage: stage === 'negotiation' ? 'proposal' : stage,
       expectedCloseAt: now + 30 * DAY,
     })
     opportunities++
-    // createOpportunity opens in `stage`; a later move only makes sense when
-    // the narrative walked the deal forward (proposal → negotiation).
+    // Negotiation deals walked forward from proposal, exercising the move.
     if (stage === 'negotiation') {
       await crm.moveOpportunity({ opportunityId: deal.id, to: 'negotiation', probability: 75 })
     }

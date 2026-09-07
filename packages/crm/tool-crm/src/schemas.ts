@@ -6,7 +6,7 @@
  * @module @deepseek-ai/dsh-tool-crm/src/schemas
  */
 
-import { INTERACTION_KINDS, LIFECYCLES, PRIORITIES, PRODUCT_KINDS, PRODUCT_RISKS, SENTIMENTS, STAGES, TASK_KINDS, TASK_STATUSES, TOLERANCES, TOPICS } from './wire.ts'
+import { INTERACTION_KINDS, LIFECYCLES, PLAN_KINDS, PLAN_STATUSES, PRIORITIES, PRODUCT_KINDS, PRODUCT_RISKS, SENTIMENTS, STAGES, TASK_KINDS, TASK_STATUSES, TOLERANCES, TOPICS } from './wire.ts'
 
 // One shared value array per vocabulary: every fragment spreads these instead
 // of allocating its own copy at module initialization.
@@ -21,6 +21,8 @@ const PRIORITY_VALUES = [...PRIORITIES]
 const INTERACTION_KIND_VALUES = [...INTERACTION_KINDS]
 const SENTIMENT_VALUES = [...SENTIMENTS]
 const TASK_STATUS_VALUES = [...TASK_STATUSES]
+const PLAN_KIND_VALUES = [...PLAN_KINDS]
+const PLAN_STATUS_VALUES = [...PLAN_STATUSES]
 
 /** Timestamps serialize as ISO 8601 strings. */
 const iso = { type: 'string' as const, required: true as const, description: 'ISO 8601 timestamp.' }
@@ -215,6 +217,105 @@ export const taskWireSchema = {
     overdue: { type: 'boolean' as const, required: true as const },
     createdAt: iso,
     updatedAt: iso,
+  },
+}
+
+/** One allocation sleeve inside an allocation plan. */
+const allocationSleeveSchema = {
+  type: 'object' as const,
+  additionalProperties: false as const,
+  properties: {
+    name: { type: 'string' as const, required: true as const },
+    kind: { type: 'string' as const, enum: PRODUCT_KIND_VALUES, required: true as const },
+    targetPercent: { type: 'integer' as const, required: true as const },
+  },
+}
+
+/** One advisory plan record; exactly one kind payload is present. */
+export const planWireSchema = {
+  type: 'object' as const,
+  additionalProperties: false as const,
+  properties: {
+    id: { type: 'string' as const, required: true as const },
+    clientId: { type: 'string' as const, required: true as const },
+    advisorId: { type: 'string' as const, required: true as const },
+    kind: { type: 'string' as const, enum: PLAN_KIND_VALUES, required: true as const },
+    status: { type: 'string' as const, enum: PLAN_STATUS_VALUES, required: true as const },
+    topics: { type: 'array' as const, items: { type: 'string' as const, enum: TOPIC_VALUES }, required: true as const },
+    tolerance: toleranceValue,
+    notes: { type: 'string' as const },
+    recurring: {
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        monthlyAmount: { type: 'number' as const, required: true as const },
+        deductionDay: { type: 'integer' as const, required: true as const },
+        productName: { type: 'string' as const, required: true as const },
+        productKind: { type: 'string' as const, enum: PRODUCT_KIND_VALUES, required: true as const },
+        endsAt: isoOptional,
+      },
+    },
+    allocation: {
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        sleeves: { type: 'array' as const, items: allocationSleeveSchema, required: true as const },
+        rebalanceBand: { type: 'integer' as const, required: true as const },
+      },
+    },
+    protectionGap: {
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        annualIncome: { type: 'number' as const, required: true as const },
+        incomeYears: { type: 'integer' as const, required: true as const },
+        existingLifeCover: { type: 'number' as const, required: true as const },
+        recommendedLifeCover: { type: 'number' as const, required: true as const },
+        existingCriticalIllnessCover: { type: 'number' as const, required: true as const },
+        recommendedCriticalIllnessCover: { type: 'number' as const, required: true as const },
+      },
+    },
+    createdAt: iso,
+    updatedAt: iso,
+  },
+}
+
+/** One plan review value: the plan plus its kind-specific evaluation. */
+export const planReviewWireSchema = {
+  type: 'object' as const,
+  additionalProperties: false as const,
+  properties: {
+    plan: { ...planWireSchema, required: true as const },
+    allocation: {
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        sleeves: {
+          type: 'array' as const,
+          required: true as const,
+          items: {
+            type: 'object' as const,
+            additionalProperties: false as const,
+            properties: {
+              name: { type: 'string' as const, required: true as const },
+              targetPercent: { type: 'integer' as const, required: true as const },
+              currentPercent: { type: 'integer' as const, required: true as const },
+              driftPercent: { type: 'integer' as const, required: true as const },
+              breached: { type: 'boolean' as const, required: true as const },
+            },
+          },
+        },
+        needsRebalance: { type: 'boolean' as const, required: true as const },
+        maxDrift: { type: 'integer' as const, required: true as const },
+      },
+    },
+    monthsElapsed: { type: 'integer' as const },
+    investedToDate: { type: 'number' as const },
+    protection: {
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: planWireSchema.properties.protectionGap.properties,
+    },
   },
 }
 

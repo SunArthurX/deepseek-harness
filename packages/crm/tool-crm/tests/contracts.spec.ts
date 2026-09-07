@@ -32,7 +32,7 @@ describe('PTC presentation contract', () => {
   it('keeps the tools registered under mode: ptc', async () => {
     await boot('ptc')
     const names = ctx!.tools.schemas().filter(schema => schema.name.startsWith('crm_'))
-    expect(names).toHaveLength(18)
+    expect(names).toHaveLength(22)
   })
 })
 

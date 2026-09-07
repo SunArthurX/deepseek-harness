@@ -12,8 +12,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { IncomingMessage } from 'node:http'
 import { AdvisorId, ClientId, OpportunityId, TaskId } from '@deepseek-ai/dsh-crm'
 import type CrmService from '@deepseek-ai/dsh-crm'
+import type { RecurringInvestmentPlan } from '@deepseek-ai/dsh-crm/types'
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { CONSOLE_PAGE } from './page.ts'
+import { buildConversionFunnel, buildRfm, buildSegments, exportAuditCsv, exportClientsCsv, exportDealsCsv, exportInteractionsCsv, exportTasksCsv } from '@deepseek-ai/dsh-crm'
 
 export const name = 'crm-console'
 export const inject = ['webServer', 'crm']
@@ -155,6 +157,24 @@ function dispatchApi(service: CrmService, request: ApiRequest): unknown {
     case 'demo-data':
       if (request.method !== 'POST') throw new Error('demo-data requires POST')
       return service.loadDemoData()
+    case 'segments':
+      return buildSegments(service)
+    case 'rfm':
+      return buildRfm(service, Date.now())
+    case 'funnel': {
+      const advisorId = queryStr(q, 'advisorId')
+      return buildConversionFunnel(service, advisorId === undefined ? undefined : AdvisorId(advisorId))
+    }
+    case 'export-clients':
+      return exportClientsCsv(service, Date.now())
+    case 'export-deals':
+      return exportDealsCsv(service)
+    case 'export-tasks':
+      return exportTasksCsv(service)
+    case 'export-interactions':
+      return exportInteractionsCsv(service)
+    case 'export-audit':
+      return exportAuditCsv(service)
     case 'overview':
       return {
         pipeline: service.pipelineSnapshot(),
@@ -356,6 +376,92 @@ function dispatchApi(service: CrmService, request: ApiRequest): unknown {
       }
       throw new Error(`unknown task action '${third ?? ''}'`)
     }
+    case 'plans': {
+      if (request.method === 'POST') {
+        const clientId = b.requireStr('clientId')
+        const kind = b.requireStr('kind')
+        const advisorId = b.str('advisorId')
+        const tolerance = b.member('tolerance', TOLERANCES)
+        const notes = b.str('notes')
+        const topics = b.memberList('topics', TOPICS)
+        const base = {
+          clientId: ClientId(clientId),
+          kind: kind as 'recurring-investment' | 'allocation' | 'protection-gap',
+          ...(advisorId === undefined ? {} : { advisorId: AdvisorId(advisorId) }),
+          ...(tolerance === undefined ? {} : { tolerance }),
+          ...(notes === undefined ? {} : { notes }),
+          ...(topics === undefined ? {} : { topics }),
+        }
+        if (kind === 'recurring-investment') {
+          const monthlyAmount = b.num('monthlyAmount')
+          const deductionDay = b.num('deductionDay')
+          const productName = b.str('productName')
+          if (monthlyAmount === undefined || deductionDay === undefined) throw new Error('missing recurring fields')
+          if (deductionDay !== Math.trunc(deductionDay) || deductionDay < 1 || deductionDay > 28) {
+            throw new Error(`deductionDay must be an integer 1–28, got ${String(deductionDay)}`)
+          }
+          return service.createPlan({
+            ...base, kind: 'recurring-investment',
+            recurring: {
+              monthlyAmount, deductionDay: deductionDay as RecurringInvestmentPlan['deductionDay'],
+              productName: productName ?? '稳健添利债券基金C', productKind: 'fund',
+            },
+          })
+        }
+        if (kind === 'allocation') {
+          const raw = b.str('sleevesJson')
+          if (raw === undefined) throw new Error("missing field 'sleevesJson'")
+          const parsed: unknown = JSON.parse(raw)
+          if (!Array.isArray(parsed)) throw new Error('sleevesJson must be an array')
+          const sleeves = parsed.map((item) => {
+            const o = item as Record<string, unknown>
+            return {
+              name: typeof o.name === 'string' ? o.name : '',
+              kind: (typeof o.kind === 'string' ? o.kind : 'fund') as 'fund',
+              targetPercent: Number(o.targetPercent ?? 0),
+            }
+          })
+          return service.createPlan({
+            ...base, kind: 'allocation',
+            allocation: { sleeves, rebalanceBand: b.num('rebalanceBand') ?? 5 },
+          })
+        }
+        if (kind === 'protection-gap') {
+          const annualIncome = b.num('annualIncome')
+          const incomeYears = b.num('incomeYears')
+          const existingLifeCover = b.num('existingLifeCover') ?? 0
+          const existingCriticalIllnessCover = b.num('existingCriticalIllnessCover') ?? 0
+          if (annualIncome === undefined || incomeYears === undefined) throw new Error('missing protection-gap fields')
+          return service.createPlan({
+            ...base, kind: 'protection-gap',
+            protectionGap: {
+              annualIncome, incomeYears, existingLifeCover, existingCriticalIllnessCover,
+              recommendedLifeCover: 0, recommendedCriticalIllnessCover: 0,
+            },
+          })
+        }
+        throw new Error(`unknown plan kind '${kind}'`)
+      }
+      const planClient = queryStr(q, 'clientId')
+      return service.listPlans(
+        planClient === undefined ? undefined : ClientId(planClient),
+      )
+    }
+    case 'plans-review': {
+      const planId = queryStr(q, 'planId')
+      if (planId === undefined) throw new Error("missing field 'planId'")
+      const currentValuesRaw = queryStr(q, 'currentValues')
+      return service.reviewPlan(
+        planId,
+        currentValuesRaw === undefined ? undefined : JSON.parse(currentValuesRaw) as Record<string, number>,
+      )
+    }
+    case 'plans-transition': {
+      if (request.method !== 'POST') throw new Error('plans-transition requires POST')
+      const planId = b.requireStr('planId')
+      const to = b.requireStr('to')
+      return service.transitionPlan(planId, to as 'draft' | 'active' | 'paused' | 'completed' | 'cancelled')
+    }
     case 'audit': {
       const clientId = queryStr(q, 'clientId')
       const advisorId = queryStr(q, 'advisorId')
@@ -368,6 +474,11 @@ function dispatchApi(service: CrmService, request: ApiRequest): unknown {
     default:
       throw new Error(`unknown API resource '${head ?? ''}'`)
   }
+}
+
+/** First path segment under the API prefix — the resource head. */
+function segments0(segments: readonly string[]): string | undefined {
+  return segments[0]
 }
 
 /**
@@ -408,6 +519,15 @@ export function apply(ctx: Context): void {
         }
         // Mutations resolve to promises; reads are sync values — await both.
         const result = await dispatchApi(service, request)
+        if (segments0(request.segments)?.startsWith('export-') === true && result !== null && typeof result === 'object' && 'content' in result) {
+          const csv = result as { filename: string; contentType: string; content: string }
+          res.writeHead(200, {
+            'content-type': csv.contentType,
+            'content-disposition': `attachment; filename="${csv.filename}"`,
+          })
+          res.end(csv.content)
+          return
+        }
         res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' })
         res.end(JSON.stringify(result ?? null))
       } catch (error) {
