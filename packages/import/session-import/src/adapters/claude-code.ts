@@ -11,6 +11,7 @@ import { basename, join } from 'node:path'
 import type { DiscoveredSession, ExternalConversation, ExternalEntry } from '../model.ts'
 import { epochMs, parseJsonlFile } from '../jsonl.ts'
 import { argumentsJsonOf, callIdOf, finalizeConversation, isRecord, promptTitleOf, stripClaudeInjectedMarkup, stringField, toolResultTextOf } from './shared.ts'
+import type { ParseOptions, ProviderAdapter } from './registry.ts'
 
 /** Options for one Claude Code parse. */
 export interface ParseClaudeCodeOptions {
@@ -288,4 +289,16 @@ export async function claudeListingTitle(sourcePath: string): Promise<string | u
   } finally {
     await handle.close()
   }
+}
+
+/** Normalized adapter surface for the service-class dispatch. */
+export const claudeCodeAdapter: ProviderAdapter = {
+  id: 'claude-code',
+  defaultHomeSegment: '.claude',
+  homeSettingKey: 'claudeHome',
+  discover: discoverClaudeCodeSessions,
+  parse: (source, options: ParseOptions) => parseClaudeCodeSession(source.sourcePath, {
+    maxFileBytes: options.maxFileBytes,
+    includeReasoning: options.includeReasoning,
+  }),
 }

@@ -1,5 +1,5 @@
 ---
-description: "The model-facing crm_* tools over the investment-advisory CRM service: client book, advisor roster, interactions, suitability-audited consultations, pipeline, follow-up tasks, and reports, for users and maintainers composing the agent's CRM surface."
+description: "The model-facing crm_* tools over the investment-advisory CRM service: client book, advisor roster, interactions, suitability-audited consultations, pipeline, follow-up tasks, advisory plans, and reports, for users and maintainers composing the agent's CRM surface."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-crm` gives the agent 18 model-facing `crm_*` tools over the durable advisory CRM: register and list advisors; create, search, read (360°), and update clients; log and list interactions; record suitability-audited consultations; open, move, and list pipeline opportunities; schedule, list, complete, cancel, and reschedule follow-up tasks; and run pipeline, book, task-load, and suitability reports. The tool layer owns wire conversion only — ISO 8601 timestamps, closed enum vocabularies, and canonical record serialization — while every business rule stays in [`dsh-crm`](../crm/README.md).
+`dsh-tool-crm` gives the agent 22 model-facing `crm_*` tools over the durable advisory CRM: register and list advisors; create, search, read (360°), and update clients; log and list interactions; record suitability-audited consultations; open, move, and list pipeline opportunities; schedule, list, complete, cancel, and reschedule follow-up tasks; create, list, transition, and review the three advisory plan kinds (定投 recurring investment, asset allocation, protection gap); and run pipeline, book, task-load, and suitability reports. The tool layer owns wire conversion only — ISO 8601 timestamps, closed enum vocabularies, and canonical record serialization — while every business rule stays in [`dsh-crm`](../crm/README.md).
 
 ## Table of Contents
 
@@ -56,6 +56,7 @@ The plugin takes no configuration; mount it after its two injected services.
 | `crm_consultation_record` | Formal consultation with per-product suitability verdicts |
 | `crm_opportunity_create` / `crm_opportunity_move` / `crm_opportunity_list` | Pipeline work |
 | `crm_task_create` / `crm_task_list` / `crm_task_complete` / `crm_task_cancel` / `crm_task_reschedule` | Follow-up discipline |
+| `crm_plan_create` / `crm_plan_list` / `crm_plan_review` / `crm_plan_transition` | Advisory plans: 定投, asset allocation, protection gap |
 | `crm_report` | pipeline \| book \| tasks \| suitability aggregations |
 
 ### Timestamps and vocabularies
@@ -124,7 +125,7 @@ Read these pages when the package-level contract is not enough.
 
 #### What the model sees
 
-The model sees the generated [`crm_*` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-crm): 18 tools with closed enum vocabularies (tolerance, product risk, stages, kinds, priorities, topics), ISO 8601 timestamp parameters, and required-id / optional-detail shapes. Each description states its scope and its failure discipline (for example, the consultation tool's record-even-when-blocked instruction).
+The model sees the generated [`crm_*` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-crm): 22 tools with closed enum vocabularies (tolerance, product risk, stages, kinds, priorities, topics), ISO 8601 timestamp parameters, and required-id / optional-detail shapes. Each description states its scope and its failure discipline (for example, the consultation tool's record-even-when-blocked instruction).
 
 #### Token effect
 

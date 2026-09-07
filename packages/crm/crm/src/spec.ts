@@ -21,6 +21,7 @@ import type {
   TaskId,
   TaskRecord,
 } from './types.ts'
+import type { PlanRecord } from './plan-types.ts'
 
 const nonNegativeSafeInteger = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 const positiveSafeInteger = z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
@@ -199,11 +200,67 @@ export const taskRecordSchema = z.object({
 }) as unknown as z.ZodType<TaskRecord>
 
 /** The CRM durable domain: one table per record kind, no global singleton. */
+
+const planKind = z.enum(['recurring-investment', 'allocation', 'protection-gap'])
+const planStatus = z.enum(['draft', 'active', 'paused', 'completed', 'cancelled'])
+const planSleeve = z.object({
+  name: z.string().min(1),
+  kind: z.enum(['fund', 'insurance', 'structured', 'retirement', 'education', 'tax', 'advisory_fee']),
+  targetPercent: z.number().int().min(0).max(100),
+})
+const planRecurring = z.object({
+  monthlyAmount: positiveSafeInteger,
+  deductionDay: z.number().int().min(1).max(28),
+  productName: z.string().min(1),
+  productKind: z.enum(['fund', 'insurance', 'structured', 'retirement', 'education', 'tax', 'advisory_fee']),
+  endsAt: nonNegativeSafeInteger.optional(),
+})
+const planAllocation = z.object({
+  sleeves: z.array(planSleeve).min(1),
+  rebalanceBand: z.number().int().min(1).max(50),
+})
+const planProtectionGap = z.object({
+  annualIncome: positiveSafeInteger,
+  incomeYears: z.number().int().min(1).max(30),
+  existingLifeCover: nonNegativeSafeInteger,
+  recommendedLifeCover: nonNegativeSafeInteger,
+  existingCriticalIllnessCover: nonNegativeSafeInteger,
+  recommendedCriticalIllnessCover: nonNegativeSafeInteger,
+})
+
+/** One persisted advisory plan; exactly one kind payload is present. */
+export const planRecordSchema = z.object({
+  id: z.string().min(1),
+  clientId,
+  advisorId,
+  kind: planKind,
+  status: planStatus,
+  topics: z.array(advisoryTopic),
+  tolerance: tolerance.optional(),
+  createdAt: nonNegativeSafeInteger,
+  updatedAt: nonNegativeSafeInteger,
+  notes: z.string().min(1).optional(),
+  recurring: planRecurring.optional(),
+  allocation: planAllocation.optional(),
+  protectionGap: planProtectionGap.optional(),
+}).refine(
+  plan => (plan.kind === 'recurring-investment') === (plan.recurring !== undefined)
+    && (plan.kind === 'allocation') === (plan.allocation !== undefined)
+    && (plan.kind === 'protection-gap') === (plan.protectionGap !== undefined),
+  { message: 'plan kind and payload must match exactly' },
+) as unknown as z.ZodType<PlanRecord>
+
+/**
+ * The CRM durable domain: one table per record kind — advisors, advisory
+ * plans, clients, interactions, consultations, opportunities, tasks — under
+ * domain version 1 (plans joined at version 1).
+ */
 export const crmDomainSpec = defineDomain({
   name: 'crm',
-  version: 0,
+  version: 1,
   tables: {
     advisors: domainTable<AdvisorId, AdvisorRecord>(advisorRecordSchema),
+    plans: domainTable<string, PlanRecord>(planRecordSchema),
     clients: domainTable<ClientId, ClientRecord>(clientRecordSchema),
     interactions: domainTable<InteractionId, InteractionRecord>(interactionRecordSchema),
     consultations: domainTable<ConsultationId, ConsultationRecord>(consultationRecordSchema),

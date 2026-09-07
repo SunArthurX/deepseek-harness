@@ -8,17 +8,18 @@ Source: [`packages/crm/crm/src/index.ts`](../../packages/crm/crm/src/index.ts)
 
 ## Service surface
 
-`ctx.crm` offers advisors (`registerAdvisor`, `getAdvisor`, `listAdvisors`), clients (`createClient`, `updateClient`, `getClient`, `searchClients`, `clientBook`), interactions (`logInteraction`, `listInteractions`), consultations (`recordConsultation`, `listConsultations`, `suitabilityAudit`), opportunities (`createOpportunity`, `moveOpportunity`, `getOpportunity`, `listOpportunities`), tasks (`createTask`, `completeTask`, `cancelTask`, `rescheduleTask`, `listTasks`), and the read-model aggregations (`pipelineSnapshot`, `bookSnapshot`, `taskLoad`). Every mutation runs on one service-level chain and validates its references before the durable write.
+`ctx.crm` offers advisors (`registerAdvisor`, `getAdvisor`, `listAdvisors`), clients (`createClient`, `updateClient`, `getClient`, `searchClients`, `clientBook`), interactions (`logInteraction`, `listInteractions`), consultations (`recordConsultation`, `listConsultations`, `suitabilityAudit`), opportunities (`createOpportunity`, `moveOpportunity`, `getOpportunity`, `listOpportunities`), tasks (`createTask`, `completeTask`, `cancelTask`, `rescheduleTask`, `listTasks`), advisory plans (`createPlan`, `getPlan`, `listPlans`, `transitionPlan`, `reviewPlan`), and the read-model aggregations (`pipelineSnapshot`, `bookSnapshot`, `taskLoad`). Every mutation runs on one service-level chain and validates its references before the durable write.
 
 ## Domain rules
 
 - **Suitability.** Every discussed product is evaluated at consultation time against the client's risk profile: tolerance level (C1–C5) must cover the product risk level (R1–R5) and the assessment must be unexpired (`riskProfileValidityDays` config). Verdicts are stored with rationales — the audit trail records unfavorable outcomes too.
 - **Pipeline stage machine.** `won`, `lost`, and `abandoned` are terminal; entering `lost` or `abandoned` requires a close reason; terminal entry stamps the close time and forces the stage's probability.
+- **Advisory plans.** One row per plan in one of three kinds — recurring investment (定投), asset allocation, protection gap — carrying exactly the matching kind payload. The lifecycle `draft → active ⇄ paused → completed` ends in a terminal status, and any non-terminal plan can be cancelled. Reviews are computed on read: allocation plans map current portfolio values to per-sleeve drift against the plan's rebalance band, recurring plans report elapsed months and invested-to-date, and protection-gap plans store the derived recommended cover (life = income × years − existing, CI = half income − existing, both floored at 0).
 - **Derived time facts.** Overdue tasks and profile validity (valid, expiring inside a fixed 30-day window, expired, missing) are computed on read, never stored.
 
 ## Durable layout and invariant
 
-The `crm` storage domain holds six tables (advisors, clients, interactions, consultations, opportunities, tasks) with zod-validated records; backends arrive through `ctx.storageDomain`. The package's invariant companion asserts cross-table referential integrity of every landed row. No session events are involved, so the persistence catalog has no CRM rows.
+The `crm` storage domain holds seven tables (advisors, plans, clients, interactions, consultations, opportunities, tasks) with zod-validated records; backends arrive through `ctx.storageDomain`. The package's invariant companion asserts cross-table referential integrity of every landed row. No session events are involved, so the persistence catalog has no CRM rows.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -55,6 +56,49 @@ getAdvisor(advisorId: AdvisorId): AdvisorRecord | undefined
  * @returns records sorted by name.
  */
 listAdvisors(active?: boolean): AdvisorRecord[]
+
+/**
+ * Create one advisory plan. Exactly one kind payload (recurring, allocation,
+ * or protection-gap) must be present and must match `kind`.
+ * @param request - Plan creation fields.
+ * @returns the committed plan record.
+ */
+createPlan(request: CreatePlanRequest): Promise<PlanRecord>
+
+/**
+ * Read one plan.
+ * @param planId - Plan to read.
+ * @returns the record, or undefined when absent.
+ */
+getPlan(planId: PlanRecord['id']): PlanRecord | undefined
+
+/**
+ * List plans, optionally by client.
+ * @param clientId - Restrict to one client when provided.
+ * @param status - Restrict to one status when provided.
+ * @returns records newest-update first.
+ */
+listPlans(clientId?: import('./types.ts').ClientId, status?: PlanRecord['status']): PlanRecord[]
+
+/**
+ * Transition one plan's status. Only draft→active, active↔paused,
+ * active→completed, and anything-not-terminal→cancelled are accepted.
+ * @param planId - Plan to transition.
+ * @param to - Target status.
+ * @returns the committed record.
+ */
+async transitionPlan(planId: PlanRecord['id'], to: PlanRecord['status']): Promise<PlanRecord>
+
+/**
+ * Evaluate one plan: allocation plans compute per-sleeve drift against the
+ * band; recurring plans report months elapsed and invested-to-date;
+ * protection-gap plans echo the recommended cover.
+ * @param planId - Plan to review.
+ * @param currentValues - Current portfolio percent per sleeve name (only
+ * needed for allocation plans).
+ * @returns the review with the plan row.
+ */
+reviewPlan(planId: PlanRecord['id'], currentValues?: Readonly<Record<string, number>>): import('./plan-types.ts').PlanReview
 
 /**
  * Load the built-in demo book (advisors, clients across every profile

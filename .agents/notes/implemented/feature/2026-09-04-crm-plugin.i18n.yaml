@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-04-crm-plugin.md
-2026-09-04-crm-plugin.md: 5c446d8b6daf496cc646363e0964aaefbdb6eec7
-2026-09-04-crm-plugin.zh.md: ccbdffa8de5fbf043fa2496a2114f219158da97d
+2026-09-04-crm-plugin.md: 6040151d7bbf807ca91809e3caf88bec67559114
+2026-09-04-crm-plugin.zh.md: b4389fbf7e7ea3fad8fa64c1fb5c7345a99d5ac7

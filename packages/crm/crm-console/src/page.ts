@@ -100,6 +100,8 @@ export const CONSOLE_PAGE = `<!doctype html>
     <button data-view="pipeline">商机管线</button>
     <button data-view="tasks">跟进任务</button>
     <button data-view="audit">适当性审计</button>
+    <button data-view="insights">客户洞察</button>
+    <button data-view="plans">投顾方案</button>
   </nav>
 </header>
 <main>
@@ -137,6 +139,36 @@ export const CONSOLE_PAGE = `<!doctype html>
       <button id="task-refresh">刷新</button>
     </div>
     <div id="task-list"></div>
+  </section>
+  <section id="plans">
+    <div class="toolbar">
+      <select id="plan-client"></select>
+      <select id="plan-kind">
+        <option value="recurring-investment">定投计划</option>
+        <option value="allocation">资产配置方案</option>
+        <option value="protection-gap">保障缺口分析</option>
+      </select>
+      <button id="plan-new">＋ 新建方案</button>
+    </div>
+    <div id="plan-list"></div>
+    <div id="plan-review"></div>
+  </section>
+  <section id="insights">
+    <div class="toolbar">
+      <button class="act export" data-export="export-clients">⬇ 客户 CSV</button>
+      <button class="act export" data-export="export-deals">⬇ 商机 CSV</button>
+      <button class="act export" data-export="export-tasks">⬇ 任务 CSV</button>
+      <button class="act export" data-export="export-interactions">⬇ 互动 CSV</button>
+      <button class="act export" data-export="export-audit">⬇ 适当性审计 CSV</button>
+      <span class="muted">UTF-8 BOM + CRLF，Excel 直接打开</span>
+    </div>
+    <h3>RFM 客户分层</h3>
+    <div id="rfm-tiers" class="cards"></div>
+    <div id="rfm-rows"></div>
+    <h3>线索 → 成交转化漏斗</h3>
+    <div id="funnel"></div>
+    <h3>客户分组</h3>
+    <div id="segments"></div>
   </section>
   <section id="audit">
     <div class="toolbar"><button id="audit-refresh">刷新审计轨迹</button></div>
@@ -176,6 +208,33 @@ export const CONSOLE_PAGE = `<!doctype html>
   <div class="foot"><button class="act gray" id="tk-cancel">取消</button><button id="tk-save">保存</button></div>
 </dialog>
 
+<dialog id="dlg-plan">
+  <h4>新建投顾方案</h4>
+  <label>客户 <select id="pl-client"></select></label>
+  <label>方案类型 <select id="pl-kind">
+    <option value="recurring-investment">定投计划</option>
+    <option value="allocation">资产配置方案</option>
+    <option value="protection-gap">保障缺口分析</option>
+  </select></label>
+  <div id="pl-recurring-fields">
+    <label>每月金额（元） <input id="pl-monthly" type="number" min="0" value="1000"></label>
+    <label>扣款日（1–28） <input id="pl-day" type="number" min="1" max="28" value="15"></label>
+    <label>标的 <input id="pl-product" placeholder="中证红利低波ETF联接A"></label>
+  </div>
+  <div id="pl-allocation-fields" style="display:none">
+    <label>固收 % <input id="pl-fixed" type="number" min="0" max="100" value="60"></label>
+    <label>权益 % <input id="pl-equity" type="number" min="0" max="100" value="30"></label>
+    <label>现金 % <input id="pl-cash" type="number" min="0" max="100" value="10"></label>
+  </div>
+  <div id="pl-protection-fields" style="display:none">
+    <label>年收入（元） <input id="pl-income" type="number" min="0"></label>
+    <label>保障年限 <input id="pl-years" type="number" min="1" max="30" value="10"></label>
+    <label>已有寿险保额 <input id="pl-life" type="number" min="0" value="0"></label>
+    <label>已有重疾保额 <input id="pl-ci" type="number" min="0" value="0"></label>
+  </div>
+  <div class="foot"><button class="act gray" id="pl-cancel">取消</button><button id="pl-save">保存</button></div>
+</dialog>
+
 <dialog id="dlg-deal">
   <h4>新建商机</h4>
   <label>客户 <select id="dl-client"></select></label>
@@ -211,7 +270,14 @@ function api(path, opts) {
     return res.json().then(function (body) {
       if (!res.ok) throw new Error(body && body.error ? body.error : res.status);
       return body;
+    }).catch(function (e) {
+      toast('请求失败：' + (e && e.message ? e.message : String(e)), true);
+      throw e;
     });
+  }).catch(function (e) {
+    if (e && e.message && e.message.indexOf('请求失败') === 0) throw e;
+    toast('网络错误：无法连接 CRM 服务', true);
+    throw e;
   });
 }
 function post(path, body) {
@@ -244,7 +310,7 @@ function loadOverview() {
         + '<span class="muted" style="width:150px;text-align:right">' + s.count + ' 单 · ' + money(s.amount) + '</span></div>';
     });
     html += '</div>'
-    if (b.totalClients === 0) {
+    if (b.totalClients === 0 && localStorage.getItem('crm-onboarding-dismissed') !== '1') {
       html += '<div class="detail" style="border-color:#2d4b78">'
         + '<h3 style="margin-top:0;color:#9cc3f7">欢迎使用投顾 CRM · 三步上手</h3>'
         + '<div class="kv" style="line-height:2.2">'
@@ -253,8 +319,9 @@ function loadOverview() {
         + '<b>③ 记咨询</b>　每款产品自动做适当性判定——绿灯可推、红灯即停，留痕可审计'
         + '</div>'
         + '<div style="margin-top:12px">'
-        + '<button id="demo-seed" style="background:#1d3357;color:#9cc3f7;border:1px solid #2f4b78;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer">🚀 一键载入演示数据（2 顾问 · 8 客户 · 5 商机 · 4 任务）</button>'
+        + '<button id="demo-seed" style="background:#1d3357;color:#9cc3f7;border:1px solid #2f4b78;border-radius:8px;padding:9px 18px;font-size:13px;cursor:pointer">🚀 一键载入演示数据（24 客户 · 28 互动 · 21 咨询 · 21 商机 · 27 任务）</button>'
         + ' <span class="muted">载入后每个页面都有真实感数据可探索</span>'
+        + ' <button id="demo-skip" class="act gray" style="margin-left:10px">不再显示</button>'
         + '</div></div>'
     }
     html += '<h3>客户结构</h3><div class="detail"><div class="kv">';
@@ -272,12 +339,18 @@ function loadOverview() {
       seed.disabled = true
       seed.textContent = '载入中…'
       post('/demo-data').then(function (summary) {
+        localStorage.setItem('crm-demo-loaded', '1')
         toast('演示数据已载入：' + summary.clients + ' 位客户、' + summary.opportunities + ' 个商机')
         views.overview()
       }).catch(function (e) {
         toast(e.message, true)
-        if (seed) { seed.disabled = false; seed.textContent = '🚀 一键载入演示数据（2 顾问 · 8 客户 · 5 商机 · 4 任务）' }
+        if (seed) { seed.disabled = false; seed.textContent = '🚀 一键载入演示数据（24 客户 · 28 互动 · 21 咨询 · 21 商机 · 27 任务）' }
       })
+    }
+    var skip = $('demo-skip')
+    if (skip) skip.onclick = function () {
+      localStorage.setItem('crm-onboarding-dismissed', '1')
+      views.overview()
     }
   });
 }
@@ -478,6 +551,88 @@ $('cs-save').onclick = function () {
   void kinds;
 };
 
+/* ── 投顾方案 ─────────────────────────────────────── */
+$('plan-new').onclick = function () {
+  api('/clients?limit=100').then(function (rows) {
+    $('plan-client').innerHTML = rows.map(function (c) {
+      return '<option value="' + c.id + '">' + esc(c.name) + '</option>'
+    }).join('')
+    $('dlg-plan').showModal()
+  })
+}
+$('pl-cancel').onclick = function () { $('dlg-plan').close() }
+$('pl-save').onclick = function () {
+  var kind = $('pl-kind').value
+  var body = { clientId: $('pl-client').value, kind: kind }
+  if (kind === 'recurring-investment') {
+    body.monthlyAmount = Number($('pl-monthly').value)
+    body.deductionDay = Number($('pl-day').value)
+    body.productName = $('pl-product').value
+  } else if (kind === 'allocation') {
+    body.sleevesJson = JSON.stringify([
+      { name: '固收', kind: 'fund', targetPercent: Number($('pl-fixed').value) },
+      { name: '权益', kind: 'fund', targetPercent: Number($('pl-equity').value) },
+      { name: '现金', kind: 'fund', targetPercent: Number($('pl-cash').value) },
+    ])
+    body.rebalanceBand = 5
+  } else {
+    body.annualIncome = Number($('pl-income').value)
+    body.incomeYears = Number($('pl-years').value)
+    body.existingLifeCover = Number($('pl-life').value || 0)
+    body.existingCriticalIllnessCover = Number($('pl-ci').value || 0)
+  }
+  post('/plans', body).then(function (record) {
+    $('dlg-plan').close()
+    toast('方案已创建（' + record.id.slice(0, 8) + '）')
+    loadPlans()
+  }).catch(function (e) { toast(e.message, true) })
+}
+function reviewPlan(id) {
+  return api('/plans-review?planId=' + id).then(function (r) {
+    var p = r.plan
+    var html = '<h3>方案详情</h3><div class="detail"><div class="kv">'
+      + '状态 <b>' + esc(p.status) + '</b>　'
+      + (p.recurring ? '月投 <b>' + money(p.recurring.monthlyAmount) + '</b>，每月 ' + p.recurring.deductionDay + ' 日，标的 <b>' + esc(p.recurring.productName) + '</b>　' : '')
+      + (p.allocation ? '再平衡带宽 <b>±' + p.allocation.rebalanceBand + '%</b>　' : '')
+      + (p.protectionGap ? '建议寿险保额 <b>' + money(p.protectionGap.recommendedLifeCover) + '</b>，建议重疾保额 <b>' + money(p.protectionGap.recommendedCriticalIllnessCover) + '</b>　' : '')
+      + '</div></div>'
+    if (p.allocation) {
+      html += '<h3>当前配置 vs 目标</h3><table><tr><th>部分</th><th>目标</th><th>当前</th><th>偏离</th><th>状态</th></tr>'
+      html += r.allocation.sleeves.map(function (s) {
+        return '<tr><td>' + esc(s.name) + '</td><td>' + s.targetPercent + '%</td><td>' + s.currentPercent + '%</td><td>' + (s.driftPercent > 0 ? '+' : '') + s.driftPercent + '%</td><td>' + (s.breached ? '<span class="pill bad">偏离超限</span>' : '<span class="pill ok">正常</span>') + '</td></tr>'
+      }).join('') + '</table>'
+      html += r.allocation.needsRebalance ? '<p class="pill warn" style="margin-top:10px;display:inline-block">⚠ 需要再平衡</p>' : '<p class="pill ok" style="margin-top:10px;display:inline-block">✓ 配置在带宽内</p>'
+    }
+    $('plan-review').innerHTML = html
+    window.scrollTo(0, document.body.scrollHeight)
+  })
+}
+function loadPlans() {
+  return api('/plans').then(function (plans) {
+    var html = '<table><tr><th>方案</th><th>客户</th><th>类型</th><th>状态</th><th>更新</th><th>操作</th></tr>'
+      + plans.map(function (p) {
+        var kindLabel = { 'recurring-investment': '定投计划', allocation: '资产配置', 'protection-gap': '保障缺口' }[p.kind] || p.kind
+        var statusPill = { draft: 'dim', active: 'ok', paused: 'warn', completed: 'ok', cancelled: 'bad' }[p.status] || 'dim'
+        var acts = '<button class="act" onclick="reviewPlan(\\'' + p.id + '\\')">评估</button> '
+        if (p.status === 'draft') acts += '<button class="act" onclick="transitionPlan(\\'' + p.id + '\\',\\'active\\')">激活</button>'
+        else if (p.status === 'active') acts += '<button class="act gray" onclick="transitionPlan(\\'' + p.id + '\\',\\'paused\\')">暂停</button> <button class="act" onclick="transitionPlan(\\'' + p.id + '\\',\\'completed\\')">完成</button>'
+        else if (p.status === 'paused') acts += '<button class="act" onclick="transitionPlan(\\'' + p.id + '\\',\\'active\\')">恢复</button>'
+        return '<tr><td class="muted">' + String(p.id).slice(0, 8) + '</td>'
+          + '<td class="muted">' + String(p.clientId).slice(0, 8) + '</td>'
+          + '<td>' + kindLabel + '</td>'
+          + '<td><span class="pill ' + statusPill + '">' + esc(p.status) + '</span></td>'
+          + '<td class="muted">' + dateOf(p.updatedAt) + '</td>'
+          + '<td>' + acts + '</td></tr>'
+      }).join('') + '</table>'
+    $('plan-list').innerHTML = html
+  })
+}
+function transitionPlan(id, to) {
+  return post('/plans-transition', { planId: id, to: to })
+    .then(function () { toast('方案状态已更新'); loadPlans() })
+    .catch(function (e) { toast(e.message, true) })
+}
+
 /* ── 商机创建 ─────────────────────────────────────── */
 $('opp-new').onclick = function () {
   api('/clients?limit=100').then(function (rows) {
@@ -553,11 +708,73 @@ $('tk-save').onclick = function () {
   }).catch(function (e) { toast(e.message, true) })
 }
 
-/* ── 导航与筛选 ───────────────────────────────────── */
-function loadClientsWithAdvisors() {
-  return api('/advisors').then(function (rows) { rememberAdvisors(rows); return loadClients() })
+$('pl-kind').onchange = function () {
+  var v = this.value
+  $('pl-recurring-fields').style.display = v === 'recurring-investment' ? '' : 'none'
+  $('pl-allocation-fields').style.display = v === 'allocation' ? '' : 'none'
+  $('pl-protection-fields').style.display = v === 'protection-gap' ? '' : 'none'
 }
-var views = { overview: loadOverview, clients: loadClientsWithAdvisors, pipeline: loadPipeline, tasks: loadTasks, audit: loadAudit };
+function reviewPlan(id) { return window.reviewPlan(id) }
+
+/* ── 导航与筛选 ───────────────────────────────────── */
+function loadInsights() {
+  return Promise.all([api('/rfm'), api('/funnel'), api('/segments')]).then(function (r) {
+    var rfm = r[0], funnel = r[1], segments = r[2]
+    var tierLabel = { champion: '冠军客户', loyal: '忠诚客户', promising: '潜力客户', 'needs-attention': '需关注', 'at-risk': '流失风险', dormant: '沉睡' }
+    var tierClass = { champion: 'ok', loyal: 'ok', promising: 'dim', 'needs-attention': 'warn', 'at-risk': 'bad', dormant: 'dim' }
+    $('rfm-tiers').innerHTML = rfm.tiers.map(function (t) {
+      return '<div class="card"><div class="l">' + (tierLabel[t.tier] || t.tier) + '</div><div class="v">' + t.count + '</div></div>'
+    }).join('')
+    $('rfm-rows').innerHTML = '<table><tr><th>客户</th><th>R</th><th>F</th><th>M</th><th>评分</th><th>分层</th><th>最近互动</th><th>互动次数</th><th>AUM</th></tr>'
+      + rfm.rows.map(function (row) {
+        return '<tr><td>' + esc(row.name) + '</td><td>' + row.recency + '</td><td>' + row.frequency + '</td><td>' + row.monetary + '</td><td><b>' + row.score + '</b></td><td><span class="pill ' + (tierClass[row.tier] || 'dim') + '">' + (tierLabel[row.tier] || row.tier) + '</span></td><td class="muted">' + (row.lastInteractionAt ? dateOf(row.lastInteractionAt) : '—') + '</td><td>' + row.interactions + '</td><td class="pill money">' + money(row.totalAum) + '</td></tr>'
+      }).join('') + '</table>'
+    var maxCount = 1
+    funnel.stages.forEach(function (s) { maxCount = Math.max(maxCount, s.count) })
+    $('funnel').innerHTML = '<div class="detail">' + funnel.stages.map(function (s) {
+      var pct = s.conversionFromPrevious === null ? '—' : s.conversionFromPrevious + '%'
+      return '<div style="display:flex;align-items:center;gap:10px;margin:6px 0">'
+        + '<span class="pill dim" style="width:64px;text-align:center">' + (STAGE_LABEL[s.stage] || s.stage) + '</span>'
+        + '<span style="flex:1"><span class="bar"><i style="width:' + Math.round(s.count / maxCount * 100) + '%"></i></span></span>'
+        + '<span class="muted" style="width:170px;text-align:right">' + s.count + ' 单 · 转化 ' + pct + '</span></div>'
+    }).join('') + '</div>'
+    $('segments').innerHTML = segments.map(function (seg) {
+      return '<div class="detail"><div class="kv"><b>' + esc(seg.label) + '</b>（' + seg.count + ' 人 · AUM ' + money(seg.totalAum) + '）<span class="muted"> — ' + esc(seg.description) + '</span></div>'
+        + '<div class="muted" style="margin-top:6px">' + (seg.rows.slice(0, 8).map(function (row) { return esc(row.name) }).join('、') || '暂无') + (seg.count > 8 ? ' 等 ' + seg.count + ' 人' : '') + '</div></div>'
+    }).join('')
+  })
+}
+document.querySelectorAll('button.export').forEach(function (btn) {
+  btn.onclick = function () {
+    fetch(API + '/' + btn.dataset.export).then(function (res) {
+      if (!res.ok) throw new Error('导出失败 ' + res.status);
+      var header = res.headers.get('content-disposition') || '';
+      var m = header.match(/filename="([^"]+)"/);
+      return res.blob().then(function (blob) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = m ? m[1] : 'export.csv';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        toast('CSV 已下载（' + btn.textContent.trim() + '）');
+      });
+    }).catch(function (e) { toast(e && e.message ? e.message : '导出失败', true); });
+  };
+});
+
+var clientLoadSeq = 0;
+function loadClientsWithAdvisors() {
+  var seq = ++clientLoadSeq;
+  return api('/advisors').then(function (rows) {
+    if (seq !== clientLoadSeq) return;   // a newer load superseded this one
+    rememberAdvisors(rows);
+    return loadClients().then(function () {
+      if (seq !== clientLoadSeq) return; // same guard for the table render
+    });
+  });
+}
+var views = { overview: loadOverview, clients: loadClientsWithAdvisors, pipeline: loadPipeline, tasks: loadTasks, audit: loadAudit, insights: loadInsights };
 document.querySelectorAll('nav button').forEach(function (btn) {
   btn.onclick = function () {
     document.querySelectorAll('nav button').forEach(function (b) { b.classList.remove('on'); });
@@ -567,7 +784,11 @@ document.querySelectorAll('nav button').forEach(function (btn) {
     views[btn.dataset.view]();
   };
 });
-$('client-q').oninput = loadClientsWithAdvisors;
+var clientQTimer;
+$('client-q').oninput = function () {
+  clearTimeout(clientQTimer);
+  clientQTimer = setTimeout(loadClientsWithAdvisors, 300);
+};
 $('client-kind').onchange = loadClientsWithAdvisors;
 $('client-lifecycle').onchange = loadClientsWithAdvisors;
 $('client-tolerance').onchange = loadClientsWithAdvisors;

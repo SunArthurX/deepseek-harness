@@ -8,17 +8,18 @@ Source: [`packages/crm/crm/src/index.ts`](../../packages/crm/crm/src/index.ts)
 
 ## Service surface
 
-`ctx.crm` 提供顾问（`registerAdvisor`、`getAdvisor`、`listAdvisors`）、客户（`createClient`、`updateClient`、`getClient`、`searchClients`、`clientBook`）、互动（`logInteraction`、`listInteractions`）、咨询（`recordConsultation`、`listConsultations`、`suitabilityAudit`）、商机（`createOpportunity`、`moveOpportunity`、`getOpportunity`、`listOpportunities`）、任务（`createTask`、`completeTask`、`cancelTask`、`rescheduleTask`、`listTasks`）以及读模型聚合（`pipelineSnapshot`、`bookSnapshot`、`taskLoad`）。每个变更都运行在一条服务级链上，并在持久写入之前校验引用。
+`ctx.crm` 提供顾问（`registerAdvisor`、`getAdvisor`、`listAdvisors`）、客户（`createClient`、`updateClient`、`getClient`、`searchClients`、`clientBook`）、互动（`logInteraction`、`listInteractions`）、咨询（`recordConsultation`、`listConsultations`、`suitabilityAudit`）、商机（`createOpportunity`、`moveOpportunity`、`getOpportunity`、`listOpportunities`）、任务（`createTask`、`completeTask`、`cancelTask`、`rescheduleTask`、`listTasks`）、投顾方案（`createPlan`、`getPlan`、`listPlans`、`transitionPlan`、`reviewPlan`）以及读模型聚合（`pipelineSnapshot`、`bookSnapshot`、`taskLoad`）。每个变更都运行在一条服务级链上，并在持久写入之前校验引用。
 
 ## Domain rules
 
 - **适当性。** 每个讨论产品在咨询时对照客户风险档案评估：容忍度等级（C1–C5）必须覆盖产品风险等级（R1–R5）且测评未过期（`riskProfileValidityDays` 配置）。判定连同依据一起存储——审计轨迹也记录不利结论。
 - **商机阶段状态机。** `won`、`lost`、`abandoned` 为终态；进入 `lost` 或 `abandoned` 需要收尾原因；进入终态盖章收尾时间并强制该阶段概率。
+- **投顾方案。** 每个方案一行，三种类别之一——定投、资产配置、保障缺口——只携带与其类别匹配的载荷。生命周期 `draft → active ⇄ paused → completed` 终止于终态，任何非终态方案都可取消。评审在读取时计算：配置方案把当前组合值映射为对照再平衡带宽的每 sleeve 偏离，定投方案报告已过月数与已投金额，保障缺口方案存储推导的建议保额（寿险 = 收入 × 年限 − 已有，重疾 = 收入一半 − 已有，均以 0 兜底）。
 - **派生时间事实。** 任务逾期与档案有效性（valid、固定 30 天窗口内 expiring、expired、missing）在读取时计算，绝不落盘。
 
 ## Durable layout and invariant
 
-`crm` 存储域持有六张表（顾问、客户、互动、咨询、商机、任务），记录经 Zod 校验；后端经 `ctx.storageDomain` 接入。包的不变式伴随插件断言每条落库行的跨表引用完整性。不涉及会话事件，持久化目录没有 CRM 行。
+`crm` 存储域持有七张表（顾问、方案、客户、互动、咨询、商机、任务），记录经 Zod 校验；后端经 `ctx.storageDomain` 接入。包的不变式伴随插件断言每条落库行的跨表引用完整性。不涉及会话事件，持久化目录没有 CRM 行。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -55,6 +56,49 @@ getAdvisor(advisorId: AdvisorId): AdvisorRecord | undefined
  * @returns records sorted by name.
  */
 listAdvisors(active?: boolean): AdvisorRecord[]
+
+/**
+ * Create one advisory plan. Exactly one kind payload (recurring, allocation,
+ * or protection-gap) must be present and must match `kind`.
+ * @param request - Plan creation fields.
+ * @returns the committed plan record.
+ */
+createPlan(request: CreatePlanRequest): Promise<PlanRecord>
+
+/**
+ * Read one plan.
+ * @param planId - Plan to read.
+ * @returns the record, or undefined when absent.
+ */
+getPlan(planId: PlanRecord['id']): PlanRecord | undefined
+
+/**
+ * List plans, optionally by client.
+ * @param clientId - Restrict to one client when provided.
+ * @param status - Restrict to one status when provided.
+ * @returns records newest-update first.
+ */
+listPlans(clientId?: import('./types.ts').ClientId, status?: PlanRecord['status']): PlanRecord[]
+
+/**
+ * Transition one plan's status. Only draft→active, active↔paused,
+ * active→completed, and anything-not-terminal→cancelled are accepted.
+ * @param planId - Plan to transition.
+ * @param to - Target status.
+ * @returns the committed record.
+ */
+async transitionPlan(planId: PlanRecord['id'], to: PlanRecord['status']): Promise<PlanRecord>
+
+/**
+ * Evaluate one plan: allocation plans compute per-sleeve drift against the
+ * band; recurring plans report months elapsed and invested-to-date;
+ * protection-gap plans echo the recommended cover.
+ * @param planId - Plan to review.
+ * @param currentValues - Current portfolio percent per sleeve name (only
+ * needed for allocation plans).
+ * @returns the review with the plan row.
+ */
+reviewPlan(planId: PlanRecord['id'], currentValues?: Readonly<Record<string, number>>): import('./plan-types.ts').PlanReview
 
 /**
  * Load the built-in demo book (advisors, clients across every profile

@@ -16,6 +16,8 @@ import type {
   InteractionRecord,
   OpportunityRecord,
   PipelineSnapshot,
+  PlanRecord,
+  PlanReview,
   TaskRecord,
   TaskLoadSnapshot,
 } from '@deepseek-ai/dsh-crm/types'
@@ -29,6 +31,8 @@ import type {
   consultationWireSchema,
   interactionWireSchema,
   opportunityWireSchema,
+  planReviewWireSchema,
+  planWireSchema,
   taskWireSchema,
 } from './schemas.ts'
 
@@ -85,6 +89,12 @@ export const PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
 
 /** Every task status the model may name. */
 export const TASK_STATUSES = ['open', 'done', 'cancelled'] as const
+
+/** Every advisory plan kind the model may name. */
+export const PLAN_KINDS = ['recurring-investment', 'allocation', 'protection-gap'] as const
+
+/** Every advisory plan status the model may name. */
+export const PLAN_STATUSES = ['draft', 'active', 'paused', 'completed', 'cancelled'] as const
 
 /** Tolerance description shared by every parameter that takes one. */
 export const TOLERANCE_DESCRIPTION = 'Client risk tolerance: C1 conservative, C2 steady, C3 balanced, C4 growth, C5 aggressive.'
@@ -340,6 +350,63 @@ export function wireTask(record: TaskRecord, now: number): InferValue<typeof tas
     overdue: record.status === 'open' && record.dueAt < now,
     createdAt: toIso(record.createdAt),
     updatedAt: toIso(record.updatedAt),
+  }
+}
+
+/**
+ * Canonical wire form of one advisory plan record.
+ * @param record - The durable plan record.
+ * @returns the wire object for tool results.
+ */
+export function wirePlan(record: PlanRecord): InferValue<typeof planWireSchema> {
+  return {
+    id: record.id,
+    clientId: record.clientId,
+    advisorId: record.advisorId,
+    kind: record.kind,
+    status: record.status,
+    topics: [...record.topics],
+    ...(record.tolerance === undefined ? {} : { tolerance: record.tolerance }),
+    ...(record.notes === undefined ? {} : { notes: record.notes }),
+    ...(record.recurring === undefined ? {} : {
+      recurring: {
+        monthlyAmount: record.recurring.monthlyAmount,
+        deductionDay: record.recurring.deductionDay,
+        productName: record.recurring.productName,
+        productKind: record.recurring.productKind,
+        ...(record.recurring.endsAt === undefined ? {} : { endsAt: toIso(record.recurring.endsAt) }),
+      },
+    }),
+    ...(record.allocation === undefined ? {} : {
+      allocation: {
+        sleeves: record.allocation.sleeves.map(sleeve => ({ ...sleeve })),
+        rebalanceBand: record.allocation.rebalanceBand,
+      },
+    }),
+    ...(record.protectionGap === undefined ? {} : { protectionGap: { ...record.protectionGap } }),
+    createdAt: toIso(record.createdAt),
+    updatedAt: toIso(record.updatedAt),
+  }
+}
+
+/**
+ * Canonical wire form of one plan review.
+ * @param review - The service-produced plan review.
+ * @returns the wire object for tool results.
+ */
+export function wirePlanReview(review: PlanReview): InferValue<typeof planReviewWireSchema> {
+  return {
+    plan: wirePlan(review.plan),
+    ...(review.allocation === undefined ? {} : {
+      allocation: {
+        sleeves: review.allocation.sleeves.map(sleeve => ({ ...sleeve })),
+        needsRebalance: review.allocation.needsRebalance,
+        maxDrift: review.allocation.maxDrift,
+      },
+    }),
+    ...(review.monthsElapsed === undefined ? {} : { monthsElapsed: review.monthsElapsed }),
+    ...(review.investedToDate === undefined ? {} : { investedToDate: review.investedToDate }),
+    ...(review.protection === undefined ? {} : { protection: { ...review.protection } }),
   }
 }
 

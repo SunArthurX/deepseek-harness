@@ -24,6 +24,7 @@ import {
   stringField,
   toolResultTextOf,
 } from './shared.ts'
+import type { ParseOptions, ProviderAdapter } from './registry.ts'
 
 /** Options for one Codex parse. */
 export interface ParseCodexOptions {
@@ -461,4 +462,16 @@ function codexContentText(content: unknown): string {
     .filter(text => text.length > 0)
     .join('\n')
     .trim()
+}
+
+/** Normalized adapter surface for the service-class dispatch. */
+export const codexAdapter: ProviderAdapter = {
+  id: 'codex',
+  defaultHomeSegment: '.codex',
+  homeSettingKey: 'codexHome',
+  discover: discoverCodexSessions,
+  parse: (source, options: ParseOptions) => parseCodexSession(source.sourcePath, {
+    maxFileBytes: options.maxFileBytes,
+    codexHome: options.home,
+  }),
 }

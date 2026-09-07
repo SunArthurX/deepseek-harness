@@ -5,6 +5,7 @@ import {
   consultationRecordSchema,
   interactionRecordSchema,
   opportunityRecordSchema,
+  planRecordSchema,
   taskRecordSchema,
 } from '../src/spec.ts'
 import type {
@@ -13,6 +14,7 @@ import type {
   ConsultationRecord,
   InteractionRecord,
   OpportunityRecord,
+  PlanRecord,
   TaskRecord,
 } from '../src/types.ts'
 
@@ -108,6 +110,59 @@ const task: TaskRecord = {
   updatedAt: NOW,
 }
 
+/** One plan fixture per kind, exercising every payload vocabulary. */
+const plan: PlanRecord = {
+  id: 'p1',
+  clientId: client.id,
+  advisorId: advisor.id,
+  kind: 'allocation',
+  status: 'active',
+  topics: ['asset_allocation'],
+  tolerance: 'C3',
+  notes: '股债均衡',
+  allocation: {
+    sleeves: [
+      { name: '固收', kind: 'fund', targetPercent: 60 },
+      { name: '权益', kind: 'fund', targetPercent: 30 },
+      { name: '现金', kind: 'fund', targetPercent: 10 },
+    ],
+    rebalanceBand: 5,
+  },
+  createdAt: NOW,
+  updatedAt: NOW,
+}
+
+const recurringPlan: PlanRecord = {
+  id: 'p2',
+  clientId: client.id,
+  advisorId: advisor.id,
+  kind: 'recurring-investment',
+  status: 'draft',
+  topics: [],
+  recurring: { monthlyAmount: 2_000, deductionDay: 15, productName: '中证红利低波ETF联接A', productKind: 'fund' },
+  createdAt: NOW,
+  updatedAt: NOW,
+}
+
+const protectionPlan: PlanRecord = {
+  id: 'p3',
+  clientId: client.id,
+  advisorId: advisor.id,
+  kind: 'protection-gap',
+  status: 'draft',
+  topics: ['insurance'],
+  protectionGap: {
+    annualIncome: 500_000,
+    incomeYears: 10,
+    existingLifeCover: 1_000_000,
+    recommendedLifeCover: 4_000_000,
+    existingCriticalIllnessCover: 200_000,
+    recommendedCriticalIllnessCover: 50_000,
+  },
+  createdAt: NOW,
+  updatedAt: NOW,
+}
+
 describe('crm record schemas at the durable boundary', () => {
   it('round-trips every full record', () => {
     expect(advisorRecordSchema.parse(advisor)).toEqual(advisor)
@@ -116,6 +171,20 @@ describe('crm record schemas at the durable boundary', () => {
     expect(consultationRecordSchema.parse(consultation)).toEqual(consultation)
     expect(opportunityRecordSchema.parse(opportunity)).toEqual(opportunity)
     expect(taskRecordSchema.parse(task)).toEqual(task)
+    expect(planRecordSchema.parse(plan)).toEqual(plan)
+    expect(planRecordSchema.parse(recurringPlan)).toEqual(recurringPlan)
+    expect(planRecordSchema.parse(protectionPlan)).toEqual(protectionPlan)
+  })
+
+  it('rejects a plan whose kind and payload do not pair exactly', () => {
+    expect(() => planRecordSchema.parse({
+      ...recurringPlan,
+      recurring: undefined,
+    })).toThrow(/kind and payload must match/)
+    expect(() => planRecordSchema.parse({
+      ...plan,
+      allocation: undefined,
+    })).toThrow(/kind and payload must match/)
   })
 
   it('rejects a malformed currency code', () => {

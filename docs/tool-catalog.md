@@ -21,7 +21,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\...` paths and `$env:NAME` variables. |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`, `cordis_inspect_list`, `cordis_inspect_query`, `cordis_inspect_self`, `cordis_run`, `cordis_stop`, `cordis_undefine` | `ctx.tools`, `ctx.dynamicCordisRunner` | `tool/call`, `tool/result`, `process-local dynamic package lifecycle` | - | Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes. |
-| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days. |
+| `@deepseek-ai/dsh-tool-crm` | `crm_advisor_list`, `crm_advisor_register`, `crm_client_create`, `crm_client_get`, `crm_client_search`, `crm_client_update`, `crm_consultation_record`, `crm_interaction_list`, `crm_interaction_log`, `crm_opportunity_create`, `crm_opportunity_list`, `crm_opportunity_move`, `crm_plan_create`, `crm_plan_list`, `crm_plan_review`, `crm_plan_transition`, `crm_report`, `crm_task_cancel`, `crm_task_complete`, `crm_task_create`, `crm_task_list`, `crm_task_reschedule` | `ctx.tools`, `ctx.crm (dsh-crm over ctx.storageDomain)` | `tool/call`, `durable crm domain records`, `tool/result` | - | Twenty-two tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days. |
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
@@ -1276,6 +1276,251 @@ Move one deal through the pipeline. won/lost/abandoned are terminal; lost and ab
 
 Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
 
+### `crm_plan_create`
+
+Create one advisory plan for a client in draft status. Exactly one kind and its payload: recurring-investment (定投) needs monthlyAmount/deductionDay/productName; allocation needs sleeves summing to 100 plus rebalanceBand; protection-gap needs annualIncome/incomeYears and existing cover. Plans start as draft; activate with crm_plan_transition.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Client the plan advises."
+    },
+    "kind": {
+      "type": "string",
+      "description": "Plan kind; the payload fields must match it.",
+      "enum": [
+        "recurring-investment",
+        "allocation",
+        "protection-gap"
+      ]
+    },
+    "advisorId": {
+      "type": "string",
+      "description": "Owning advisor; defaults to the client's owner."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Advisory topics the plan touches.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_allocation",
+          "retirement",
+          "tax",
+          "insurance",
+          "education",
+          "market_outlook",
+          "product_review",
+          "portfolio_rebalance",
+          "other"
+        ]
+      }
+    },
+    "tolerance": {
+      "type": "string",
+      "description": "Risk tolerance recorded at creation; defaults to the client's current profile.",
+      "enum": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5"
+      ]
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-text notes."
+    },
+    "monthlyAmount": {
+      "type": "number",
+      "description": "recurring-investment: monthly amount in CNY, positive."
+    },
+    "deductionDay": {
+      "type": "integer",
+      "description": "recurring-investment: deduction day of month, 1–28."
+    },
+    "productName": {
+      "type": "string",
+      "description": "recurring-investment: product the recurring buys target."
+    },
+    "productKind": {
+      "type": "string",
+      "description": "recurring-investment: product category; defaults to fund.",
+      "enum": [
+        "fund",
+        "insurance",
+        "structured",
+        "retirement",
+        "education",
+        "tax",
+        "advisory_fee"
+      ]
+    },
+    "endsAt": {
+      "type": "string",
+      "description": "recurring-investment: optional end of the plan, ISO 8601."
+    },
+    "sleeves": {
+      "type": "array",
+      "description": "allocation: at least one sleeve; target percents must sum to 100.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Sleeve label, e.g. 固收/权益/现金."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Product category the sleeve invests in.",
+            "enum": [
+              "fund",
+              "insurance",
+              "structured",
+              "retirement",
+              "education",
+              "tax",
+              "advisory_fee"
+            ]
+          },
+          "targetPercent": {
+            "type": "integer",
+            "description": "Target percent, 0–100; all sleeves must sum to 100."
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "targetPercent"
+        ]
+      }
+    },
+    "rebalanceBand": {
+      "type": "integer",
+      "description": "allocation: drift band in percentage points, 1–50; beyond it review flags rebalance."
+    },
+    "annualIncome": {
+      "type": "number",
+      "description": "protection-gap: annual family income in CNY."
+    },
+    "incomeYears": {
+      "type": "integer",
+      "description": "protection-gap: years of income to protect, 1–30."
+    },
+    "existingLifeCover": {
+      "type": "number",
+      "description": "protection-gap: existing life-cover sum assured; defaults to 0."
+    },
+    "existingCriticalIllnessCover": {
+      "type": "number",
+      "description": "protection-gap: existing critical-illness cover; defaults to 0."
+    }
+  },
+  "required": [
+    "clientId",
+    "kind"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_list`
+
+List advisory plans, newest-updated first, optionally per client or status.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "clientId": {
+      "type": "string",
+      "description": "Restrict to one client."
+    },
+    "status": {
+      "type": "string",
+      "description": "Restrict to one lifecycle status.",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum rows (default 20, max 200)."
+    }
+  }
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_review`
+
+Evaluate one advisory plan. Allocation plans compute per-sleeve drift against the band from currentValues (current portfolio percent per sleeve name); recurring plans report months elapsed and invested-to-date; protection-gap plans echo the recommended cover.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "planId": {
+      "type": "string",
+      "description": "Plan to evaluate."
+    },
+    "currentValues": {
+      "type": "object",
+      "description": "allocation only: current portfolio percent keyed by sleeve name.",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "planId"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
+### `crm_plan_transition`
+
+Move one advisory plan through its lifecycle: draft→active, active↔paused, active→completed, and any non-terminal status→cancelled. Terminal statuses (completed, cancelled) are final.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "planId": {
+      "type": "string",
+      "description": "Plan to transition."
+    },
+    "to": {
+      "type": "string",
+      "description": "Target status.",
+      "enum": [
+        "draft",
+        "active",
+        "paused",
+        "completed",
+        "cancelled"
+      ]
+    }
+  },
+  "required": [
+    "planId",
+    "to"
+  ]
+}
+```
+
+Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
+
 ### `crm_report`
 
 Run one CRM report. pipeline: per-stage counts, amounts, weighted forecast, and win rate. book: client distribution by lifecycle and risk tolerance, AUM totals, and risk assessments expiring within 30 days or already expired. tasks: open-task load per advisor with overdue counts and the next due items. suitability: the flattened audit trail of product verdicts from recorded consultations.
@@ -1500,7 +1745,7 @@ Move one open task's due time.
 
 Source: [`packages/crm/tool-crm/src/index.ts`](../packages/crm/tool-crm/src/index.ts)
 
-Eighteen tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.
+Twenty-two tools over the investment-advisory CRM service; every business rule (suitability, stage machine, referential integrity) lives in dsh-crm, so the schemas stay stable across storage-backend swaps. `riskProfileValidityDays` is required on the service with no default, so the catalog states the choice: 730 days.
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 

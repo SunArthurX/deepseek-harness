@@ -488,6 +488,7 @@ describe('CrmService lifecycle', () => {
     expect(() => service.listInteractions()).toThrow(/not initialized/)
     expect(() => service.listConsultations()).toThrow(/not initialized/)
     expect(() => service.listOpportunities()).toThrow(/not initialized/)
+    expect(() => service.listPlans()).toThrow(/not initialized/)
     expect(() => service.listTasks()).toThrow(/not initialized/)
     return ctx.fiber.dispose()
   })

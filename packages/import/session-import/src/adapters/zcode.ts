@@ -12,6 +12,7 @@ import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DiscoveredSession, ExternalConversation, ExternalEntry } from '../model.ts'
 import { argumentsJsonOf, callIdOf, isRecord, stripClaudeInjectedMarkup, stringField, toolResultTextOf } from './shared.ts'
+import type { ParseOptions, ProviderAdapter } from './registry.ts'
 
 /** Open the ZCode store read-only (this package never writes source stores). */
 function openStore(zcodeHome: string): DatabaseSync {
@@ -267,4 +268,17 @@ export function zcodeSessionsMatching(zcodeHome: string, query: string): Set<str
   } finally {
     db.close()
   }
+}
+
+/** Normalized adapter surface for the service-class dispatch. */
+export const zcodeAdapter: ProviderAdapter = {
+  id: 'zcode',
+  defaultHomeSegment: '.zcode',
+  homeSettingKey: 'zcodeHome',
+  discover: discoverZcodeSessions,
+  parse: (source, options: ParseOptions) => parseZcodeSession(source.sourceId, {
+    maxFileBytes: options.maxFileBytes,
+    includeReasoning: options.includeReasoning,
+  }, options.home),
+  search: (home, query) => Promise.resolve(zcodeSessionsMatching(home, query)),
 }

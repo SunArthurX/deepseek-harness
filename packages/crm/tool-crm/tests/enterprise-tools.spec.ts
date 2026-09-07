@@ -50,7 +50,7 @@ describe('presentation-mode compatibility', () => {
     ctx = undefined
     const both = await boot('both')
     const names = both.tools.schemas().filter(schema => schema.name.startsWith('crm_')).map(schema => schema.name)
-    expect(names).toHaveLength(18)
+    expect(names).toHaveLength(22)
     const result = await call('crm_client_search', { query: '王建国' })
     expect(result.isError).toBe(false)
     expect((result.value as { clients: unknown[] }).clients).toHaveLength(1)

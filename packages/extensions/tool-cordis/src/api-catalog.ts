@@ -774,6 +774,36 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'records sorted by name.',
       },
       {
+        signature: 'createPlan(request: CreatePlanRequest): Promise<PlanRecord>',
+        description: 'Create one advisory plan. Exactly one kind payload (recurring, allocation, or protection-gap) must be present and must match `kind`.',
+        parameters: [{ name: 'request', description: 'Plan creation fields.' }],
+        returns: 'the committed plan record.',
+      },
+      {
+        signature: 'getPlan(planId: PlanRecord[\'id\']): PlanRecord | undefined',
+        description: 'Read one plan.',
+        parameters: [{ name: 'planId', description: 'Plan to read.' }],
+        returns: 'the record, or undefined when absent.',
+      },
+      {
+        signature: 'listPlans(clientId?: import(\'./types.ts\').ClientId, status?: PlanRecord[\'status\']): PlanRecord[]',
+        description: 'List plans, optionally by client.',
+        parameters: [{ name: 'clientId', description: 'Restrict to one client when provided.' }, { name: 'status', description: 'Restrict to one status when provided.' }],
+        returns: 'records newest-update first.',
+      },
+      {
+        signature: 'async transitionPlan(planId: PlanRecord[\'id\'], to: PlanRecord[\'status\']): Promise<PlanRecord>',
+        description: 'Transition one plan\'s status. Only draft→active, active↔paused, active→completed, and anything-not-terminal→cancelled are accepted.',
+        parameters: [{ name: 'planId', description: 'Plan to transition.' }, { name: 'to', description: 'Target status.' }],
+        returns: 'the committed record.',
+      },
+      {
+        signature: 'reviewPlan(planId: PlanRecord[\'id\'], currentValues?: Readonly<Record<string, number>>): import(\'./plan-types.ts\').PlanReview',
+        description: 'Evaluate one plan: allocation plans compute per-sleeve drift against the band; recurring plans report months elapsed and invested-to-date; protection-gap plans echo the recommended cover.',
+        parameters: [{ name: 'planId', description: 'Plan to review.' }, { name: 'currentValues', description: 'Current portfolio percent per sleeve name (only needed for allocation plans).' }],
+        returns: 'the review with the plan row.',
+      },
+      {
         signature: 'loadDemoData(now: number = Date.now()): Promise<DemoDataSummary>',
         description: 'Load the built-in demo book (advisors, clients across every profile status, interactions, suitability-varied consultations, pipeline deals, one overdue task) through the real mutation rules. Refuses when the client book is non-empty, so it is a one-time onboarding action.',
         parameters: [{ name: 'now', description: 'Reference time the demo stages around; defaults to the clock.' }],
@@ -3661,6 +3691,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AgentStatus = \'idle\' | \'running\';',
   },
   {
+    name: 'AllocationSleeve',
+    declaration: 'export interface AllocationSleeve {\n    readonly name: string;\n    readonly kind: ProductKind;\n    readonly targetPercent: number;\n}',
+  },
+  {
     name: 'ApiKeyRecord',
     declaration: 'export interface ApiKeyRecord {\n    readonly kind: \'api-key\';\n    readonly key?: string;\n    readonly env?: Readonly<Record<string, string>>;\n}',
   },
@@ -4085,6 +4119,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface CreateOpportunityRequest {\n    readonly clientId: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly productKind: OpportunityRecord[\'productKind\'];\n    readonly productName?: string;\n    readonly stage?: OpportunityStage;\n    readonly amount: number;\n    readonly currency?: string;\n    readonly probability?: number;\n    readonly expectedCloseAt?: number;\n    readonly notes?: string;\n}',
   },
   {
+    name: 'CreatePlanRequest',
+    declaration: 'export interface CreatePlanRequest {\n    readonly clientId: string;\n    readonly advisorId?: string;\n    readonly kind: PlanKind;\n    readonly topics?: readonly AdvisoryTopic[];\n    readonly tolerance?: RiskTolerance;\n    readonly notes?: string;\n    readonly recurring?: RecurringInvestmentPlan;\n    readonly allocation?: {\n        readonly sleeves: readonly AllocationSleeve[];\n        readonly rebalanceBand: number;\n    };\n    readonly protectionGap?: ProtectionGapPlan;\n}',
+  },
+  {
     name: 'CreateSessionOptions',
     declaration: 'export interface CreateSessionOptions {\n    readonly seed?: readonly SessionEvent[];\n    readonly meta?: {\n        readonly cwd?: string;\n        readonly parentSession?: SessionId;\n        readonly createdAt?: number;\n        readonly seedLength?: number;\n        readonly origin?: \'subagent\';\n        readonly delegationDepth?: number;\n        readonly agentPreset?: string;\n    };\n}',
   },
@@ -4119,6 +4157,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CredentialRef',
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
+  },
+  {
+    name: 'DeductionDay',
+    declaration: 'export type DeductionDay = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28;',
   },
   {
     name: 'DeepSeekLlmApiExtensionMap',
@@ -4849,6 +4891,26 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PipelineSnapshot {\n    readonly advisorId?: AdvisorId;\n    readonly stages: readonly StageSummary[];\n    readonly openCount: number;\n    readonly openAmount: number;\n    readonly weightedForecast: number;\n    readonly wonCount: number;\n    readonly wonAmount: number;\n    readonly lostCount: number;\n    readonly winRate: number | null;\n}',
   },
   {
+    name: 'PlanBase',
+    declaration: 'export interface PlanBase {\n    readonly id: PlanId;\n    readonly clientId: string;\n    readonly advisorId: string;\n    readonly kind: PlanKind;\n    readonly status: PlanStatus;\n    readonly topics: readonly AdvisoryTopic[];\n    readonly tolerance?: RiskTolerance;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n    readonly notes?: string;\n}',
+  },
+  {
+    name: 'PlanId',
+    declaration: 'export type PlanId = string;',
+  },
+  {
+    name: 'PlanKind',
+    declaration: 'export type PlanKind = \'recurring-investment\' | \'allocation\' | \'protection-gap\';',
+  },
+  {
+    name: 'PlanRecord',
+    declaration: 'export type PlanRecord = PlanBase & {\n    readonly recurring?: RecurringInvestmentPlan;\n    readonly allocation?: {\n        readonly sleeves: readonly AllocationSleeve[];\n        readonly rebalanceBand: number;\n    };\n    readonly protectionGap?: ProtectionGapPlan;\n};',
+  },
+  {
+    name: 'PlanStatus',
+    declaration: 'export type PlanStatus = \'draft\' | \'active\' | \'paused\' | \'completed\' | \'cancelled\';',
+  },
+  {
     name: 'PostToolDecision',
     declaration: 'export type PostToolDecision = {\n    kind: \'accept\';\n    content?: ContentBlock[];\n    value?: never;\n    additionalContexts?: UserMessage[];\n} | {\n    kind: \'accept\';\n    value: JsonValue;\n    content?: never;\n    additionalContexts?: UserMessage[];\n} | {\n    kind: \'block\';\n    feedback: ContentBlock[];\n    additionalContexts?: UserMessage[];\n};',
   },
@@ -4953,6 +5015,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface PromptSection {\n    readonly name: string;\n    readonly order: number;\n    readonly text: string | ((context: AssembleContext) => string);\n    readonly complete?: boolean;\n}',
   },
   {
+    name: 'ProtectionGapPlan',
+    declaration: 'export interface ProtectionGapPlan {\n    readonly annualIncome: number;\n    readonly incomeYears: number;\n    readonly existingLifeCover: number;\n    readonly recommendedLifeCover: number;\n    readonly existingCriticalIllnessCover: number;\n    readonly recommendedCriticalIllnessCover: number;\n}',
+  },
+  {
     name: 'ProviderRequestId',
     declaration: 'export type ProviderRequestId = Branded<\'ProviderRequestId\'>;',
   },
@@ -4987,6 +5053,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'RecordConsultationRequest',
     declaration: 'export interface RecordConsultationRequest {\n    readonly clientId: ClientId;\n    readonly advisorId?: AdvisorId;\n    readonly interactionId?: InteractionId;\n    readonly occurredAt?: number;\n    readonly topics?: readonly AdvisoryTopic[];\n    readonly products?: readonly ProductDiscussion[];\n    readonly recommendations?: readonly string[];\n    readonly followUpRequired?: boolean;\n    readonly summary?: string;\n    readonly sessionId?: string;\n}',
+  },
+  {
+    name: 'RecurringInvestmentPlan',
+    declaration: 'export interface RecurringInvestmentPlan {\n    readonly monthlyAmount: number;\n    readonly deductionDay: DeductionDay;\n    readonly productName: string;\n    readonly productKind: ProductKind;\n    readonly endsAt?: number;\n}',
   },
   {
     name: 'RedactedSecret',

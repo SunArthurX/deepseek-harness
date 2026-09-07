@@ -319,9 +319,11 @@ describe('demo-data onboarding', () => {
   it('seeds through POST and refuses a second press', async () => {
     const seeded = await send('POST', '/crm-console/api/demo-data')
     expect(seeded.status).toBe(200)
-    expect(seeded.json).toMatchObject({ advisors: 2, clients: 8, opportunities: 5, tasks: 4 })
+    expect(seeded.json).toMatchObject({
+      advisors: 2, clients: 24, interactions: 28, consultations: 21, opportunities: 21, tasks: 27,
+    })
     const overview = await send('GET', '/crm-console/api/overview')
-    expect((overview.json as { book: { totalClients: number } }).book.totalClients).toBe(8)
+    expect((overview.json as { book: { totalClients: number } }).book.totalClients).toBe(24)
     const again = await send('POST', '/crm-console/api/demo-data')
     expect(again.status).toBe(400)
     expect((again.json as { error: string }).error).toContain('not empty')
@@ -333,5 +335,67 @@ describe('demo-data onboarding', () => {
     const html = await (await get('/crm-console')).text()
     expect(html).toContain('demo-seed')
     expect(html).toContain('三步上手')
+  })
+})
+
+describe('enterprise insights endpoints', () => {
+  it('answers segments, rfm, funnel, and csv export over HTTP', async () => {
+    await send('POST', '/crm-console/api/demo-data')
+    const segments = await send('GET', '/crm-console/api/segments')
+    expect(segments.status).toBe(200)
+    const keys = (segments.json as unknown as { key: string }[]).map(row => row.key)
+    expect(keys).toContain('vip')
+    expect(keys).toContain('expiring-assessment')
+    const rfm = await send('GET', '/crm-console/api/rfm')
+    const rfmRows = rfm.json as unknown as { rows: { score: string; tier: string }[]; tiers: { tier: string; count: number }[] }
+    expect(rfmRows.rows.length).toBeGreaterThanOrEqual(24)
+    expect(rfmRows.tiers.reduce((sum, t) => sum + t.count, 0)).toBe(rfmRows.rows.length)
+    const funnel = await send('GET', '/crm-console/api/funnel')
+    expect((funnel.json as { stages: unknown[] }).stages).toHaveLength(5)
+    const csv = await fetch(`${base}/crm-console/api/export-clients`)
+    expect(csv.status).toBe(200)
+    expect(csv.headers.get('content-type')).toBe('text/csv; charset=utf-8')
+    expect(csv.headers.get('content-disposition')).toContain('attachment; filename="crm-clients-')
+    const text = await csv.text()
+    // The BOM survives on the wire (Node's TextDecoder strips it in .text()).
+    const rawBytes = new Uint8Array(await (await fetch(`${base}/crm-console/api/export-clients`)).arrayBuffer())
+    expect([rawBytes[0], rawBytes[1], rawBytes[2]]).toEqual([0xef, 0xbb, 0xbf])
+    expect(text.split('\r\n').filter(line => line.length > 0).length).toBeGreaterThanOrEqual(25)
+  })
+
+  it('scopes funnel by advisorId and rejects nothing on empty book', async () => {
+    await send('POST', '/crm-console/api/demo-data')
+    const advisor = await send('POST', '/crm-console/api/advisors', { name: '新顾问' })
+    const advisorId = (advisor.json as { id: string }).id
+    const scoped = await send('GET', `/crm-console/api/funnel?advisorId=${advisorId}`)
+    expect(scoped.status).toBe(200)
+    expect((scoped.json as { won: number; stages: unknown[] }).won).toBe(0)
+    expect((scoped.json as { stages: unknown[] }).stages).toHaveLength(5)
+  })
+
+  it('carries the insights view in the page', async () => {
+    const html = await (await get('/crm-console')).text()
+    expect(html).toContain('RFM 客户分层')
+    expect(html).toContain('export-clients')
+    expect(html).toContain('客户分组')
+  })
+})
+
+describe('extended CSV exports', () => {
+  it('serves deals, tasks, interactions, and audit exports with csv headers', async () => {
+    await send('POST', '/crm-console/api/demo-data')
+    for (const path of ['export-deals', 'export-tasks', 'export-interactions', 'export-audit']) {
+      const res = await fetch(`${base}/crm-console/api/${path}`)
+      expect(res.status, path).toBe(200)
+      expect(res.headers.get('content-type'), path).toBe('text/csv; charset=utf-8')
+      const text = await res.text()
+      expect(text.length, path).toBeGreaterThan(10)
+      expect(text.split('\r\n').filter(line => line.length > 0).length, path).toBeGreaterThanOrEqual(2)
+    }
+  })
+
+  it('answers an unknown export- resource with a 400', async () => {
+    const res = await send('GET', '/crm-console/api/export-nothing')
+    expect(res.status).toBe(400)
   })
 })

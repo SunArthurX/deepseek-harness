@@ -44,10 +44,7 @@ import {
   type SyncResult,
   type SourcePreviewMessage,
 } from './service.ts'
-import { discoverClaudeCodeSessions, parseClaudeCodeSession } from './adapters/claude-code.ts'
-import { discoverCodexSessions, parseCodexSession } from './adapters/codex.ts'
-import { discoverZcodeSessions, parseZcodeSession, zcodeSessionsMatching } from './adapters/zcode.ts'
-import { discoverMinimaxSessions, parseMinimaxSession } from './adapters/minimax.ts'
+import { ADAPTERS, type ParseOptions } from './adapters/registry.ts'
 import { translateConversation, type TranslationSpec } from './translate.ts'
 import { redactText } from './redact.ts'
 import { fileContains } from './jsonl.ts'
@@ -92,6 +89,16 @@ export class SessionImportService extends Service {
   private readonly settings: Config
   private persistence: SessionPersistence | undefined
   private agents: AgentRegistry | undefined
+  /**
+   * Short-TTL cache of `listSources` results keyed by JSON-stringified
+   * options. Repeated calls from the console within `LIST_CACHE_TTL_MS`
+   * skip the per-provider `discover` walks; every successful
+   * `importSource` clears the cache so a follow-up listing always reflects
+   * the new `imported` flags. `syncAll` bypasses the cache because its
+   * quota accounting must see a fresh discovery.
+   */
+  private readonly listCache = new Map<string, { readonly expires: number; readonly promise: Promise<SourceListing[]> }>()
+  private static readonly LIST_CACHE_TTL_MS = 1500
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'sessionImport')
@@ -121,10 +128,9 @@ export class SessionImportService extends Service {
    * @returns the absolute home directory.
    */
   private homeFor(provider: ExternalProviderId): string {
-    if (provider === 'claude-code') return homeOf(this.settings.claudeHome, '.claude')
-    if (provider === 'codex') return homeOf(this.settings.codexHome, '.codex')
-    if (provider === 'zcode') return homeOf(this.settings.zcodeHome, '.zcode')
-    return homeOf(this.settings.minimaxHome, '.minimax')
+    const adapter = ADAPTERS[provider]
+    const setting = this.settings[adapter.homeSettingKey]
+    return homeOf(setting, adapter.defaultHomeSegment)
   }
 
   /**
@@ -140,29 +146,52 @@ export class SessionImportService extends Service {
     /** Raw substring filter: keeps conversations whose transcript contains it (case-insensitive). */
     readonly query?: string
   } = {}): Promise<SourceListing[]> {
-    const providers: ExternalProviderId[] = options.provider !== undefined ? [options.provider] : ['claude-code', 'codex', 'zcode']
+    const key = JSON.stringify({
+      provider: options.provider ?? '*',
+      query: options.query ?? '',
+      limit: options.limit ?? -1,
+    })
+    const cached = this.listCache.get(key)
+    if (cached !== undefined && cached.expires > Date.now()) return cached.promise
+    const promise = this.listSourcesUncached(options)
+    this.listCache.set(key, { expires: Date.now() + SessionImportService.LIST_CACHE_TTL_MS, promise })
+    // Failed discoveries evict the entry so the next call retries; a
+    // successful completion leaves the entry in place until the TTL expires.
+    promise.catch(() => { this.listCache.delete(key) })
+    return promise
+  }
+
+  /**
+   * Uncached {@link listSources}. {@link syncAll} uses this entry point
+   * because its quota accounting must observe a fresh discovery on every
+   * iteration, not a previously cached snapshot.
+   */
+  private async listSourcesUncached(options: {
+    readonly provider?: ExternalProviderId
+    readonly limit?: number
+    /** Raw substring filter: keeps conversations whose transcript contains it (case-insensitive). */
+    readonly query?: string
+  } = {}): Promise<SourceListing[]> {
+    const providers: ExternalProviderId[] = options.provider !== undefined
+      ? [options.provider]
+      : (Object.keys(ADAPTERS) as ExternalProviderId[])
     const known = await this.knownIds()
     const listings: SourceListing[] = []
     for (const id of providers) {
       const home = this.homeFor(id)
-      const discovered = id === 'claude-code'
-        ? await discoverClaudeCodeSessions(home)
-        : id === 'codex'
-          ? await discoverCodexSessions(home)
-          : id === 'zcode'
-            ? await discoverZcodeSessions(home)
-            : await discoverMinimaxSessions(home)
+      const discovered = await ADAPTERS[id].discover(home)
       let rows = discovered
-      const zcodeQuery = id === 'zcode' && options.query !== undefined && options.query.length > 0
-      if (zcodeQuery) {
-        // ZCode filters in SQLite (LIKE over titles/messages/parts); the
-        // JSONL providers filter per file by content scan below.
-        const matching = zcodeSessionsMatching(home, options.query)
+      const queryText = options.query
+      const adapter = ADAPTERS[id]
+      if (queryText !== undefined && queryText.length > 0 && adapter.search !== undefined) {
+        // SQLite adapters answer through `LIKE` cheaply; JSONL adapters leave
+        // `search` undefined and fall through to the per-file scan below.
+        const matching = await adapter.search(home, queryText)
         rows = discovered.filter(row => matching.has(row.sourceId))
       }
       for (const row of rows) {
-        if (options.query !== undefined && options.query.length > 0 && id !== 'zcode'
-          && !(await fileContains(row.sourcePath, options.query))) continue
+        if (queryText !== undefined && queryText.length > 0 && adapter.search === undefined
+          && !(await fileContains(row.sourcePath, queryText))) continue
         listings.push({
           ...row,
           imported: known.has(targetIdFor(row.provider, row.sourceId)),
@@ -186,13 +215,7 @@ export class SessionImportService extends Service {
     readonly targetId?: string
   }): Promise<ImportSpec> {
     const home = this.homeFor(request.provider)
-    const discovered = request.provider === 'claude-code'
-      ? await discoverClaudeCodeSessions(home)
-      : request.provider === 'codex'
-        ? await discoverCodexSessions(home)
-        : request.provider === 'zcode'
-          ? await discoverZcodeSessions(home)
-          : await discoverMinimaxSessions(home)
+    const discovered = await ADAPTERS[request.provider].discover(home)
     const source = discovered.find(row => row.sourceId === request.sourceId)
     /* v8 ignore else -- both outcomes are covered by service.spec; the implicit
        fall-through's synthesized count goes negative under v8 range remapping. */
@@ -265,6 +288,10 @@ export class SessionImportService extends Service {
     if ((await this.persistedIds()).has(spec.targetId)) throw new TargetCollisionError(spec.targetId)
 
     const conversation = await this.parseResolved(request, spec)
+    // Invalidate the listing cache before the import completes so any
+    // `listSources` call observing the new "imported" flag sees the
+    // write-through rather than a stale cache hit from before the import.
+    this.listCache.clear()
     const seed = translateConversation(conversation, spec.translation, importedAt)
     // Every import carries the shared group directory as its header cwd, so
     // workspace grouping shows one「导入」group instead of scattering imports
@@ -325,23 +352,12 @@ export class SessionImportService extends Service {
     spec: ImportSpec,
   ): Promise<ExternalConversation> {
     const maxFileBytes = this.settings.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
-    if (request.provider === 'claude-code') {
-      return parseClaudeCodeSession(spec.source.sourcePath, {
-        maxFileBytes,
-        includeReasoning: spec.translation.includeReasoning,
-      })
+    const options: ParseOptions = {
+      home: spec.home,
+      maxFileBytes,
+      includeReasoning: spec.translation.includeReasoning,
     }
-    if (request.provider === 'codex') {
-      return parseCodexSession(spec.source.sourcePath, { maxFileBytes, codexHome: this.homeFor('codex') })
-    }
-    if (request.provider === 'zcode') {
-      return parseZcodeSession(request.sourceId, {
-        maxFileBytes, includeReasoning: spec.translation.includeReasoning,
-      }, this.homeFor('zcode'))
-    }
-    return parseMinimaxSession(request.sourceId, {
-      maxFileBytes, includeReasoning: spec.translation.includeReasoning,
-    }, this.homeFor('minimax'))
+    return ADAPTERS[request.provider].parse(spec.source, options)
   }
 
   /**
@@ -426,7 +442,7 @@ export class SessionImportService extends Service {
     let conflicts = 0
     let errors = 0
     let deferred = 0
-    for (const row of await this.listSources(options.provider === undefined ? {} : { provider: options.provider })) {
+    for (const row of await this.listSourcesUncached(options.provider === undefined ? {} : { provider: options.provider })) {
       // The quota counts only fresh imports and is checked before the import
       // attempt: an unimported row beyond it defers untouched (threadock
       // semantics — up-to-date skips never consume the cap).

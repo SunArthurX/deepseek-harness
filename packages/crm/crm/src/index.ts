@@ -13,6 +13,7 @@ import s from '@deepseek-ai/schemastery'
 import type { KvTable } from '@deepseek-ai/dsh-storage-domain'
 import { evaluateSuitability } from './suitability.ts'
 import { loadDemoData } from './demo-data.ts'
+import type { CreatePlanRequest, PlanRecord } from './plan-types.ts'
 import type { DemoDataSummary } from './demo-data.ts'
 import { crmDomainSpec } from './spec.ts'
 import type {
@@ -61,6 +62,9 @@ import type {
 export type * from './types.ts'
 export { crmDomainSpec } from './spec.ts'
 export { loadDemoData } from './demo-data.ts'
+export { SEGMENTS, buildConversionFunnel, buildRfm, buildSegments, exportAuditCsv, exportClientsCsv, exportDealsCsv, exportInteractionsCsv, exportTasksCsv } from './insights-impl.ts'
+export type { ClientSegment, ConversionFunnel, CsvExport, FunnelStage, RfmAnalysis, RfmRow, SegmentRow } from './insights.ts'
+export type { AdvisoryTopic, ProductKind } from './insights.ts'
 export type { DemoDataSummary } from './demo-data.ts'
 export {
   advisorRecordSchema,
@@ -210,6 +214,31 @@ export class CrmTaskStateError extends Error {
   constructor(readonly taskId: TaskId, readonly action: string, readonly status: TaskStatus) {
     super(`cannot ${action} task '${taskId}': it is '${status}', not 'open'`)
     this.name = 'CrmTaskStateError'
+  }
+}
+
+/** A request named a plan no durable record holds. */
+export class CrmUnknownPlanError extends Error {
+  /**
+   * @param planId - The unknown plan id.
+   */
+  constructor(readonly planId: string) {
+    super(`unknown CRM plan '${planId}'`)
+    this.name = 'CrmUnknownPlanError'
+  }
+}
+
+/** A plan status transition violates the lifecycle. */
+export class CrmPlanStateError extends Error {
+  /**
+   * @param planId - The plan addressed.
+   * @param from - The current status.
+   * @param to - The attempted status.
+   * @param reason - Why the transition is rejected.
+   */
+  constructor(readonly planId: string, readonly from: string, readonly to: string, readonly reason: string) {
+    super(`cannot move plan '${planId}' from '${from}' to '${to}': ${reason}`)
+    this.name = 'CrmPlanStateError'
   }
 }
 
@@ -532,6 +561,7 @@ export class CrmService extends Service {
   private consultationsTable?: KvTable<ConsultationId, ConsultationRecord>
   private opportunitiesTable?: KvTable<OpportunityId, OpportunityRecord>
   private tasksTable?: KvTable<TaskId, TaskRecord>
+  private plansTable?: KvTable<string, PlanRecord>
   private tail: Promise<void> = Promise.resolve()
   private admitting = true
 
@@ -558,6 +588,7 @@ export class CrmService extends Service {
     this.consultationsTable = domain.table('consultations')
     this.opportunitiesTable = domain.table('opportunities')
     this.tasksTable = domain.table('tasks')
+    this.plansTable = domain.table('plans')
   }
 
   /** Queue one whole read-validate-write mutation behind every earlier one. */
@@ -593,6 +624,11 @@ export class CrmService extends Service {
   private opportunities(): KvTable<OpportunityId, OpportunityRecord> {
     if (this.opportunitiesTable === undefined) throw new Error('crm: durable domain is not initialized (opportunities)')
     return this.opportunitiesTable
+  }
+
+  private plans(): KvTable<string, PlanRecord> {
+    if (this.plansTable === undefined) throw new Error('crm: durable domain is not initialized (plans)')
+    return this.plansTable
   }
 
   private tasks(): KvTable<TaskId, TaskRecord> {
@@ -702,6 +738,162 @@ export class CrmService extends Service {
     return this.values(this.advisors())
       .filter(advisor => active === undefined || advisor.active === active)
       .sort((left, right) => compareText(left.name, right.name))
+  }
+
+  /**
+   * Create one advisory plan. Exactly one kind payload (recurring, allocation,
+   * or protection-gap) must be present and must match `kind`.
+   * @param request - Plan creation fields.
+   * @returns the committed plan record.
+   */
+  createPlan(request: CreatePlanRequest): Promise<PlanRecord> {
+    const advisorId = request.advisorId === undefined ? undefined : AdvisorId(request.advisorId)
+    return this.enqueue(async () => {
+      const client = this.requireClient(ClientId(request.clientId))
+      if (advisorId !== undefined) this.requireAdvisor(advisorId)
+      const now = Date.now()
+      const resolvedAdvisor = advisorId ?? client.advisorId
+      if (resolvedAdvisor === undefined) throw new CrmAdvisorRequiredError('creating a plan')
+      const payload: Record<string, unknown> = {
+        id: randomUUID(),
+        clientId: client.id,
+        advisorId: resolvedAdvisor,
+        kind: request.kind,
+        status: 'draft',
+        topics: Object.freeze([...request.topics ?? []]),
+        ...(request.tolerance === undefined ? {} : { tolerance: request.tolerance }),
+        ...(request.notes === undefined ? {} : { notes: trimmedLine(request.notes, 'notes') }),
+        createdAt: now,
+        updatedAt: now,
+      }
+      if (request.kind === 'recurring-investment') {
+        if (request.recurring === undefined) throw new Error('crm: recurring-investment plans require a recurring payload')
+        payload.recurring = Object.freeze({ ...request.recurring })
+      } else if (request.kind === 'allocation') {
+        if (request.allocation === undefined) throw new Error('crm: allocation plans require an allocation payload')
+        const total = request.allocation.sleeves.reduce((sum, sleeve) => sum + sleeve.targetPercent, 0)
+        if (total !== 100) throw new Error(`crm: allocation sleeves must sum to 100, got ${String(total)}`)
+        payload.allocation = Object.freeze({
+          sleeves: Object.freeze(request.allocation.sleeves.map(sleeve => Object.freeze({ ...sleeve }))),
+          rebalanceBand: request.allocation.rebalanceBand,
+        })
+      } else {
+        // The union narrows to 'protection-gap' here; an unknown kind cannot reach the service.
+        if (request.protectionGap === undefined) throw new Error('crm: protection-gap plans require a protectionGap payload')
+        const gap = request.protectionGap
+        payload.protectionGap = Object.freeze({
+          ...gap,
+          recommendedLifeCover: Math.max(0, gap.annualIncome * gap.incomeYears - gap.existingLifeCover),
+          recommendedCriticalIllnessCover: Math.max(0, Math.round(gap.annualIncome / 2) - gap.existingCriticalIllnessCover),
+        })
+      }
+      const record = Object.freeze(payload as unknown as PlanRecord)
+      await this.plans().put(record.id, record)
+      return record
+    })
+  }
+
+  /**
+   * Read one plan.
+   * @param planId - Plan to read.
+   * @returns the record, or undefined when absent.
+   */
+  getPlan(planId: PlanRecord['id']): PlanRecord | undefined {
+    for (const [, row] of this.plans().entries()) {
+      if (row.id === planId) return row
+    }
+    return undefined
+  }
+
+  /**
+   * List plans, optionally by client.
+   * @param clientId - Restrict to one client when provided.
+   * @param status - Restrict to one status when provided.
+   * @returns records newest-update first.
+   */
+  listPlans(clientId?: import('./types.ts').ClientId, status?: PlanRecord['status']): PlanRecord[] {
+    return this.collect(this.plans(), () => true)
+      .filter(plan => (clientId === undefined || plan.clientId === clientId) && (status === undefined || plan.status === status))
+      .sort((left, right) => right.updatedAt - left.updatedAt)
+  }
+
+  /**
+   * Transition one plan's status. Only draft→active, active↔paused,
+   * active→completed, and anything-not-terminal→cancelled are accepted.
+   * @param planId - Plan to transition.
+   * @param to - Target status.
+   * @returns the committed record.
+   */
+  async transitionPlan(planId: PlanRecord['id'], to: PlanRecord['status']): Promise<PlanRecord> {
+    return this.enqueue(async () => {
+      let current: PlanRecord | undefined
+      for (const [, row] of this.plans().entries()) {
+        if (row.id === planId) { current = row; break }
+      }
+      if (current === undefined) throw new CrmUnknownPlanError(planId)
+      const from = current.status
+      const allowed: Record<string, readonly string[]> = {
+        draft: ['active', 'cancelled'],
+        active: ['paused', 'completed', 'cancelled'],
+        paused: ['active', 'cancelled'],
+        completed: [],
+        cancelled: [],
+      }
+      if (from === to) throw new CrmPlanStateError(planId, from, to, 'the plan is already in this status')
+      if (!allowed[from]?.includes(to)) {
+        throw new CrmPlanStateError(planId, from, to, `'${from}' cannot transition to '${to}'`)
+      }
+      const updated: PlanRecord = Object.freeze({ ...current, status: to, updatedAt: Math.max(Date.now(), current.updatedAt) })
+      await this.plans().put(updated.id, updated)
+      return updated
+    })
+  }
+
+  /**
+   * Evaluate one plan: allocation plans compute per-sleeve drift against the
+   * band; recurring plans report months elapsed and invested-to-date;
+   * protection-gap plans echo the recommended cover.
+   * @param planId - Plan to review.
+   * @param currentValues - Current portfolio percent per sleeve name (only
+   * needed for allocation plans).
+   * @returns the review with the plan row.
+   */
+  reviewPlan(planId: PlanRecord['id'], currentValues?: Readonly<Record<string, number>>): import('./plan-types.ts').PlanReview {
+    const plan = this.getPlan(planId)
+    if (plan === undefined) throw new CrmUnknownPlanError(planId)
+    if (plan.kind === 'allocation' && plan.allocation !== undefined) {
+      const allocation = plan.allocation
+      const totalTracked = currentValues === undefined ? 0 : Object.values(currentValues).reduce((sum, value) => sum + value, 0)
+      const sleeves = allocation.sleeves.map((sleeve) => {
+        const currentPercent = totalTracked === 0 ? 0
+          : Math.round(((currentValues?.[sleeve.name] ?? 0) / totalTracked) * 100)
+        const driftPercent = sleeve.targetPercent - currentPercent
+        return {
+          name: sleeve.name,
+          targetPercent: sleeve.targetPercent,
+          currentPercent,
+          driftPercent,
+          breached: Math.abs(driftPercent) > allocation.rebalanceBand,
+        }
+      })
+      const maxDrift = sleeves.reduce((max, sleeve) => Math.max(max, Math.abs(sleeve.driftPercent)), 0)
+      return {
+        plan,
+        allocation: { sleeves, needsRebalance: sleeves.some(sleeve => sleeve.breached), maxDrift },
+      }
+    }
+    if (plan.kind === 'recurring-investment' && plan.recurring !== undefined) {
+      const monthsElapsed = Math.max(0, Math.floor((Date.now() - plan.createdAt) / (30 * 86_400_000)))
+      return {
+        plan,
+        monthsElapsed,
+        investedToDate: monthsElapsed * plan.recurring.monthlyAmount,
+      }
+    }
+    // A landed row always pairs its kind with its payload, so the empty arm
+    // of the spread cannot run for a real protection-gap plan.
+    /* v8 ignore next */
+    return { plan, ...(plan.protectionGap === undefined ? {} : { protection: plan.protectionGap }) }
   }
 
   /**
