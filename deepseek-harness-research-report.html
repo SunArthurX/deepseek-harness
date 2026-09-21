@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepSeek Harness 项目调研报告 · 2026-08</title>
+<style>
+:root{
+  --navy:#0b1f35; --navy2:#123457; --blue:#1e6fd9; --blue-dk:#14406b;
+  --bg:#f4f6f9; --card:#ffffff; --text:#1f2937; --muted:#5b6b7f;
+  --border:#e2e8f0; --ok:#15803d; --ok-bg:#e8f5ec; --warn:#b45309; --warn-bg:#fdf1e0;
+  --danger:#b91c1c; --danger-bg:#fdeaea; --info-bg:#e8f1fb;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:100px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);font-size:15px;line-height:1.75}
+a{color:var(--blue);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* ===== Hero ===== */
+.hero{background:linear-gradient(135deg,#0b1f35 0%,#123a63 55%,#17518b 100%);color:#fff;padding:64px 24px 56px}
+.hero-inner{max-width:1180px;margin:0 auto}
+.hero .tag{display:inline-block;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:3px 14px;font-size:12.5px;letter-spacing:2px;color:#cfe3ff;margin-bottom:20px}
+.hero h1{font-size:38px;font-weight:700;letter-spacing:.5px;margin-bottom:12px}
+.hero .sub{font-size:17px;color:#b9cfe8;max-width:860px;margin-bottom:28px}
+.hero .meta{display:flex;flex-wrap:wrap;gap:10px}
+.hero .chip{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.22);border-radius:8px;padding:6px 14px;font-size:13px;color:#e6effb}
+.hero .chip b{color:#fff;font-weight:600}
+
+/* ===== Nav ===== */
+.nav{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--border);box-shadow:0 1px 6px rgba(15,35,60,.06)}
+.nav-inner{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;gap:2px;padding:8px 24px}
+.nav a{font-size:13px;color:#3c4c60;padding:6px 11px;border-radius:6px;white-space:nowrap}
+.nav a:hover{background:var(--info-bg);text-decoration:none}
+.nav a.active{background:var(--blue-dk);color:#fff}
+
+/* ===== Layout ===== */
+.wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px}
+section{margin-bottom:52px}
+h2{font-size:24px;color:var(--navy);font-weight:700;padding-left:14px;border-left:5px solid var(--blue);margin-bottom:20px}
+h3{font-size:17.5px;color:var(--navy2);margin:26px 0 12px}
+h4{font-size:15px;color:var(--navy2);margin:18px 0 8px}
+p{margin-bottom:12px}
+.lead{font-size:15.5px;color:#33465c}
+ul.b{margin:0 0 14px 22px}
+ul.b li{margin-bottom:7px}
+.small{font-size:12.5px;color:var(--muted)}
+.path{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12px;background:#eef2f7;border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:#33465c;word-break:break-all}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px 26px;box-shadow:0 1px 4px rgba(15,35,60,.05);margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* ===== KPI ===== */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:26px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 22px;box-shadow:0 1px 4px rgba(15,35,60,.05)}
+.kpi .num{font-size:30px;font-weight:700;color:var(--blue-dk);font-variant-numeric:tabular-nums;line-height:1.2}
+.kpi .num small{font-size:14px;font-weight:600;color:var(--muted)}
+.kpi .lab{font-size:13px;color:var(--muted);margin-top:4px}
+
+/* ===== Tables ===== */
+table{width:100%;border-collapse:collapse;background:#fff;font-size:13.5px;margin:14px 0 20px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+th{background:var(--navy2);color:#fff;text-align:left;padding:10px 14px;font-weight:600;font-size:13px;letter-spacing:.3px}
+td{padding:10px 14px;border-top:1px solid var(--border);vertical-align:top}
+tr:nth-child(even) td{background:#f8fafc}
+.tbl-scroll{overflow-x:auto}
+
+/* ===== Badges ===== */
+.b{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-dgr{background:var(--danger-bg);color:var(--danger)}
+.b-info{background:var(--info-bg);color:var(--blue-dk)}
+.b-mut{background:#eef2f6;color:#55677d}
+
+/* ===== Bar charts ===== */
+.chart{margin:10px 0 6px}
+.chart .row{display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+.chart .name{color:#3c4c60;text-align:right}
+.chart .track{background:#e9eef4;border-radius:5px;height:18px;overflow:hidden}
+.chart .fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#2f7de1,#14406b)}
+.chart .val{color:var(--muted);font-variant-numeric:tabular-nums;font-size:12.5px}
+
+/* ===== Architecture diagram ===== */
+.diagram{background:#0e2440;border-radius:12px;padding:26px 24px;color:#dbe7f5;margin:14px 0 20px}
+.layer{border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:12px 16px;margin-bottom:12px;background:rgba(255,255,255,.045)}
+.layer:last-child{margin-bottom:0}
+.layer .t{font-size:13px;font-weight:700;color:#9cc4ef;letter-spacing:1px;margin-bottom:8px}
+.layer .items{display:flex;flex-wrap:wrap;gap:8px}
+.layer .it{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);border-radius:6px;padding:4px 11px;font-size:12.5px}
+.arrow{ text-align:center;color:#6f92bb;font-size:15px;margin:-4px 0 8px}
+
+/* ===== Callouts ===== */
+.note{border-left:4px solid var(--blue);background:var(--info-bg);border-radius:0 8px 8px 0;padding:13px 18px;margin:14px 0;font-size:14px}
+.warn-box{border-left:4px solid var(--warn);background:var(--warn-bg);border-radius:0 8px 8px 0;padding:13px 18px;margin:14px 0;font-size:14px}
+.ok-box{border-left:4px solid var(--ok);background:var(--ok-bg);border-radius:0 8px 8px 0;padding:13px 18px;margin:14px 0;font-size:14px}
+
+/* ===== Score ===== */
+.score{display:flex;align-items:center;gap:10px}
+.score .bar{flex:1;height:8px;background:#e9eef4;border-radius:4px;overflow:hidden}
+.score .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#2f7de1,#14406b)}
+.score .pct{width:110px;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+footer{background:var(--navy);color:#93a9c2;padding:34px 24px;font-size:13px}
+footer .inner{max-width:1180px;margin:0 auto}
+footer b{color:#dbe7f5}
+
+.top-btn{position:fixed;right:26px;bottom:30px;background:var(--blue-dk);color:#fff;border:none;border-radius:50%;width:44px;height:44px;font-size:19px;cursor:pointer;box-shadow:0 4px 14px rgba(11,31,53,.3);opacity:0;pointer-events:none;transition:.25s;z-index:60}
+.top-btn.show{opacity:1;pointer-events:auto}
+@media print{.nav,.top-btn{display:none}.hero{background:var(--navy)}body{background:#fff}}
+</style>
+</head>
+<body>
+
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="hero-inner">
+    <span class="tag">CONFIDENTIAL · TECHNICAL DUE DILIGENCE</span>
+    <h1>DeepSeek Harness 项目调研报告</h1>
+    <div class="sub">对 deepseek-harness 代码仓库的 50 轮系统性调研：架构、能力矩阵、工程质量、安全模型、社区活跃度与风险的综合评估。</div>
+    <div class="meta">
+      <span class="chip">调研对象：<b>deepseek-harness</b>（all-plugin Cordis Agent Harness）</span>
+      <span class="chip">版本快照：<b>0.1.2-alpha.1</b> · commit cd5ef81481</span>
+      <span class="chip">调研日期：<b>2026-08-29</b></span>
+      <span class="chip">调研方法：<b>50 轮 / 10 个并行调研域</b></span>
+    </div>
+  </div>
+</div>
+
+<!-- ================= NAV ================= -->
+<nav class="nav"><div class="nav-inner">
+  <a href="#overview">项目概况</a><a href="#metrics">量化指标</a><a href="#architecture">总体架构</a><a href="#plugin">插件模型</a><a href="#core">核心执行链</a><a href="#capabilities">能力矩阵</a><a href="#data">数据与会话</a><a href="#interaction">交互与审批</a><a href="#integration">集成接口</a><a href="#llm">LLM 层</a><a href="#security">安全模型</a><a href="#engineering">工程体系</a><a href="#activity">活跃度</a><a href="#risk">评估与风险</a><a href="#compare">竞品对比</a><a href="#conclusion">结论建议</a><a href="#appendix">附录</a>
+</div></nav>
+
+<div class="wrap">
+
+<!-- ================= 0 摘要 ================= -->
+<section id="summary">
+  <h2>执行摘要</h2>
+  <div class="card">
+    <p class="lead"><b>DeepSeek Harness（dsh）</b>是 DeepSeek 官方的开源 Agent Harness，处于 developer preview 阶段（v0.1.2-alpha.1）。它构建在源码内 vendored 的 <b>Cordis 框架</b>之上，采用"一切皆插件"架构：模型适配器、工具注册表、会话日志乃至 agent loop 本身都是可由配置替换的插件，没有特权内核。</p>
+    <ul class="b">
+      <li><b>规模：</b>247 个 workspace 包（56 个分组）+ 9 个 vendored 框架包，2,640 个 TypeScript 源文件、约 <b>56.0 万行 TS</b>；另含 Python SDK（约 2,900 行）与原生 Landlock 沙箱模块（C）。</li>
+      <li><b>速度：</b>2026-06-10 至 2026-08-28 的 <b>80 天内产生 14,226 次提交</b>（日均约 178 次），46 位贡献者，1,203 个已合并 PR，PR 编号已达 #3248。</li>
+      <li><b>工程纪律极高：</b>逐文件 <b>100% 测试覆盖率门禁</b>、43 个 verify-* 静态门禁、约 606 篇 implemented 决策记录（Agent Notes）、机器强制的文档字数预算与中英双语配对、129 个录制会话快照场景。</li>
+      <li><b>能力完备：</b>shell/subprocess/终端/文件系统/沙箱/子代理/工作流/技能/网络/LSP 等 20+ 能力接缝；同时提供 Web GUI、Headless、SDK（TS/Python）、ACP 四种应用形态，并可与 Claude Code / Codex <b>互操作</b>（hook 桥 + 子代理 provider）。</li>
+      <li><b>主要风险：</b>pre-release 无任何兼容承诺（首个 tagged release 前可自由重命名）、vendored Cordis 上游漂移检测尚未落地（供应链敞口）、深度绑定 DeepSeek 模型生态、项目仅 80 天历史且无外部生产采用案例。</li>
+    </ul>
+    <div class="note"><b>总体判断：</b>这是一个"流程成熟度远超版本号"的项目——以牺牲发布速度换取正确性基座（仓库自述 stance：<i>foundation over blast radius</i>）。其定位是"开源、可组合的 Agent 框架 + 参考实现"，工程纪律显著高于同类开源项目；适合作为企业构建自研 Agent 平台的架构参考或基座候选，但当前版本不具备生产稳定性承诺。</div>
+  </div>
+</section>
+
+<!-- ================= 1 概况 ================= -->
+<section id="overview">
+  <h2>一、项目概况</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">1.1 项目定位</h3>
+      <ul class="b">
+        <li>DeepSeek AI 官方 Agent Harness，MIT 协议，全仓 ESM（<span class="path">"type":"module"</span>）。</li>
+        <li>设计哲学：<b>"没有特权核心"</b>——扩展方式是"在插件树旁边挂载一个插件"，而非修改内核；新行为一律走文档化扩展点（<i>Plugins, not loop changes</i>）。</li>
+        <li>预发布立场：<b>正确性基座优先于爆炸半径</b>——首个 tagged release 前允许自由重命名/重打包，后端拒绝旧盘上格式（<span class="path">SESSION_FORMAT_VERSION=0</span>，无兼容承诺）。</li>
+        <li>5 个内置 profile：<b>web</b>（默认，127.0.0.1:3080）、<b>headless</b>、<b>sdk</b>、<b>sdk-minimal</b>、<b>acp</b>，全部经唯一启动器 <span class="path">dsh</span> CLI 启动。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">1.2 核心设计不变量（节选）</h3>
+      <ul class="b">
+        <li><b>Model-visible ⟺ Logged：</b>到达模型请求的一切必须可从会话日志重构，有运行时不变量断言。</li>
+        <li><b>Registrations are effects：</b>一切注册经 <span class="path">ctx.effect()/ctx.on()</span>，返回 disposer，卸载按序回卷。</li>
+        <li><b>Explicit &gt; Implicit：</b>默认值必须是显式 <span class="path">resolve(request): Spec</span> 步骤（dsh-shell 为模板），禁止 run() 内隐藏 <span class="path">?? default</span>。</li>
+        <li><b>Fail-loud：</b>误配置在加载期或最早可解析点响亮失败，绝不静默跳过。</li>
+        <li><b>不透明跨边界 id 必须 branded</b>（<span class="path">Branded&lt;B&gt;</span>），禁裸 string。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">1.3 三类事件域</h3>
+    <table>
+      <tr><th style="width:22%">事件域</th><th style="width:30%">示例</th><th>性质</th></tr>
+      <tr><td><b>Session events</b></td><td><span class="path">user/message</span>、<span class="path">tool/call</span>、<span class="path">tool/result</span>、<span class="path">compaction/*</span>、<span class="path">approval/*</span></td><td>持久事实（append-only 会话日志），唯一事实源，可重放</td></tr>
+      <tr><td><b>Agent events</b>（agent/*）</td><td><span class="path">agent/pre-step</span>、<span class="path">agent/request</span>、<span class="path">agent/turn-stopping</span></td><td>活体拦截点（扩展点），waterfall 可改写/拒绝</td></tr>
+      <tr><td><b>Capability events</b></td><td><span class="path">fs/*</span>、<span class="path">tools/*</span>、<span class="path">telemetry/*</span></td><td>能力接缝生命周期事件</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 2 指标 ================= -->
+<section id="metrics">
+  <h2>二、量化指标总览</h2>
+  <div class="kpis">
+    <div class="kpi"><div class="num">247</div><div class="lab">workspace 包（+9 vendored）</div></div>
+    <div class="kpi"><div class="num">56.0<small> 万行</small></div><div class="lab">TypeScript 源码（2,640 文件）</div></div>
+    <div class="kpi"><div class="num">14,226</div><div class="lab">提交次数（80 天）</div></div>
+    <div class="kpi"><div class="num">46</div><div class="lab">贡献者人数</div></div>
+    <div class="kpi"><div class="num">100<small>%</small></div><div class="lab">逐文件测试覆盖率门禁</div></div>
+    <div class="kpi"><div class="num">43</div><div class="lab">verify-* 静态质量门禁</div></div>
+    <div class="kpi"><div class="num">606</div><div class="lab">implemented 决策记录（Agent Notes）</div></div>
+    <div class="kpi"><div class="num">129</div><div class="lab">录制会话快照场景</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">2.1 包分组分布（Top 14）</h3>
+      <div class="chart">
+        <div class="row"><span class="name">client</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">43</span></div>
+        <div class="row"><span class="name">session</span><div class="track"><div class="fill" style="width:32.6%"></div></div><span class="val">14</span></div>
+        <div class="row"><span class="name">subagent</span><div class="track"><div class="fill" style="width:25.6%"></div></div><span class="val">11</span></div>
+        <div class="row"><span class="name">shell</span><div class="track"><div class="fill" style="width:23.3%"></div></div><span class="val">10</span></div>
+        <div class="row"><span class="name">util / experimental</span><div class="track"><div class="fill" style="width:20.9%"></div></div><span class="val">9 ×2</span></div>
+        <div class="row"><span class="name">core / fs / host / llm</span><div class="track"><div class="fill" style="width:16.3%"></div></div><span class="val">7–8</span></div>
+        <div class="row"><span class="name">web / context</span><div class="track"><div class="fill" style="width:14%"></div></div><span class="val">6 ×2</span></div>
+        <div class="row"><span class="name">interaction / api</span><div class="track"><div class="fill" style="width:11.6%"></div></div><span class="val">5 ×2</span></div>
+      </div>
+      <p class="small">单包组：acp、identity、mcp、plan、schedule、todo、workspace 等；另有 apps 2 个（cli、web）、python/sdk-runtime。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">2.2 提交节奏（按月）</h3>
+      <div class="chart">
+        <div class="row"><span class="name">2026-06</span><div class="track"><div class="fill" style="width:7%"></div></div><span class="val">581</span></div>
+        <div class="row"><span class="name">2026-07</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="val">8,297</span></div>
+        <div class="row"><span class="name">2026-08（至28日）</span><div class="track"><div class="fill" style="width:64.5%"></div></div><span class="val">5,348</span></div>
+      </div>
+      <ul class="b" style="margin-top:14px">
+        <li>首提交：2026-06-10；最新提交：2026-08-28（release 0.1.2-alpha.1 合并，PR #3248）。</li>
+        <li>近 30 天 6,419 次提交；单日峰值 219 次；日常 100–160 次。</li>
+        <li>1,203 个 merge commit；提交信息全部遵循 Conventional Commits 规范。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">2.3 主要贡献者（非 merge 提交，Top 10）</h3>
+    <table>
+      <tr><th>贡献者</th><th style="width:18%">提交数</th><th>贡献者</th><th style="width:18%">提交数</th></tr>
+      <tr><td>Tianyi Cui</td><td>2,429</td><td>_Kerman</td><td>421</td></tr>
+      <tr><td>imccyu</td><td>1,100+</td><td>creatixchu</td><td>340</td></tr>
+      <tr><td>Yichen Jiang</td><td>845</td><td>Hypatia May</td><td>296</td></tr>
+      <tr><td>Turtle</td><td>449</td><td>pku-xht</td><td>295</td></tr>
+      <tr><td>Chinesezjc</td><td>436</td><td>Dudu-0223</td><td>238</td></tr>
+    </table>
+    <p class="small">多位贡献者使用 @deepseek.com 邮箱，属 DeepSeek 内部团队主导开发。</p>
+  </div>
+</section>
+
+<!-- ================= 3 架构 ================= -->
+<section id="architecture">
+  <h2>三、总体架构</h2>
+  <div class="card">
+    <h3 style="margin-top:0">3.1 启动与组合分层</h3>
+    <div class="diagram">
+      <div class="layer"><div class="t">入口层</div><div class="items"><span class="it">dsh CLI（apps/cli，唯一受支持启动器）</span><span class="it">bin.ts → 只加载选中的 runner</span></div></div>
+      <div class="arrow">▼</div>
+      <div class="layer"><div class="t">应用装配层（packages/boot）</div><div class="items"><span class="it">dsh-app-boot：加载 .env</span><span class="it">组合 profile/patch 层</span><span class="it">启动全部插件</span><span class="it">fail-loud 错误报告</span><span class="it">dsh-cmdline：app 自有 flag</span></div></div>
+      <div class="arrow">▼</div>
+      <div class="layer"><div class="t">Bundle patch 层（packages/bundle，6 包）</div><div class="items"><span class="it">dsh-base（共享核）</span><span class="it">web-app</span><span class="it">headless</span><span class="it">sdk-app</span><span class="it">acp-app</span><span class="it">sdk-minimal（独立完整树，刻意不用 base）</span></div></div>
+      <div class="arrow">▼</div>
+      <div class="layer"><div class="t">用户覆盖层</div><div class="items"><span class="it">$DSH_HOME/profiles/&lt;name&gt;/cordis.patch.yml</span><span class="it">--patch 覆盖层</span><span class="it">patchReload: live | startup</span></div></div>
+      <div class="arrow">▼</div>
+      <div class="layer"><div class="t">插件树（247 包，Cordis Loader 装配）</div><div class="items"><span class="it">core 组</span><span class="it">能力接缝 ×20+</span><span class="it">client 组（43 包）</span><span class="it">session 组</span><span class="it">preset / bundle / guard…</span></div></div>
+    </div>
+    <ul class="b">
+      <li>patch 按 id 匹配配置行、<b>整体替换该行（不深合并）</b>或插入新行；<span class="path">dsh --dump-config</span> 可无启动打印组合树。</li>
+      <li><b>禁止 package bin 直启应用</b>：<span class="path">verify-application-entrypoints</span> 门禁为每个 bin 分配显式类别，白名单仅 dsh CLI 与一个私有构建工具。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">3.2 Turn 执行流（一次回合）</h3>
+    <p><span class="path">turn ⊇ steps</span>：turn 由 <span class="path">turn/start|end</span> 包裹，可含多 step；每个 step = 一次模型调用 + 它请求的工具执行。</p>
+    <table>
+      <tr><th style="width:26%">阶段</th><th>机制</th></tr>
+      <tr><td>输入认领</td><td>loop 认领 inbox 消息（通道：<b>send / followup / steer / inject</b>，分别对应本轮/下轮/唤醒/不唤醒）</td></tr>
+      <tr><td>pre-step</td><td><span class="path">agent/pre-step</span> waterfall：可 enter（改写消息）或 reject（turn 以 blocked 结束）；compaction 压力检查在此触发</td></tr>
+      <tr><td>组装请求</td><td><span class="path">SystemPrompt.assemble()</span> → <span class="path">agent/request</span> waterfall 提出 LlmCallConfig → 写 <span class="path">request/header</span>、<span class="path">request/context</span></td></tr>
+      <tr><td>流式响应</td><td>chunk 逐条追加 <span class="path">assistant/chunk</span>；错误走 <span class="path">agent/request-error</span> waterfall 决定 retry（llm-retry 插件）或抛错</td></tr>
+      <tr><td>工具执行</td><td>并发调度：isConcurrencySafe 且 parallel 模式进有界滚动池（默认上限 10），否则独占形成 barrier；结果按模型顺序提交</td></tr>
+      <tr><td>收尾</td><td><span class="path">agent/turn-stopping</span> serial 钩子；中断时已流出前缀落为 interrupted 消息、未派发调用补合成 tool/result</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 4 插件模型 ================= -->
+<section id="plugin">
+  <h2>四、Cordis 插件模型（框架层）</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">4.1 能力接缝三角色（capability seam）</h3>
+      <table>
+        <tr><th style="width:30%">角色</th><th>职责</th></tr>
+        <tr><td><b>Service Definition</b></td><td>拥有 <span class="path">ctx.&lt;key&gt;</span> 与词汇类型的抽象类（"never a TypeScript interface"），如 <span class="path">ShellExecutor</span></td></tr>
+        <tr><td><b>Service Provider</b></td><td>具体实现，每组合恰好一个（重复注册即抛错），如 bash-local / pwsh-local</td></tr>
+        <tr><td><b>Consumer</b></td><td>注入使用的模型可见工具，如 tool-bash</td></tr>
+      </table>
+      <p class="small">规范示例：dsh-shell（Definition）→ dsh-bash-local / dsh-bash-sandbox（Provider）→ dsh-tool-bash（Consumer）。接缝必须三角色完整，缺一不可。</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">4.2 五种事件派发模式</h3>
+      <table>
+        <tr><th style="width:26%">模式</th><th>语义</th></tr>
+        <tr><td><span class="path">emit</span></td><td>不等待，纯通知</td></tr>
+        <tr><td><span class="path">waterfall</span></td><td>不等待、有返回值、around 中间件；监听者<b>必须调用 next() 委托</b>，否则短路链</td></tr>
+        <tr><td><span class="path">parallel / serial</span></td><td>等待全部/逐个监听者</td></tr>
+        <tr><td><span class="path">bail</span></td><td>首个 bail 值停止</td></tr>
+      </table>
+      <p class="small">事件 JSDoc 强制 <span class="path">@mode</span> 标签；类型化事件用 declaration merging + merge-extensible maps。</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">4.3 Vendor 策略（供应链自承担）</h3>
+    <ul class="b">
+      <li><span class="path">vendor/</span> 固定 9 包：cordis 4.0.0-rc.7、loader、include、group、timer、hmr、logger-console、cosmokit 1.8.1、schemastery 3.18.0。</li>
+      <li>全部 rescope 至 <span class="path">@deepseek-ai</span> scope（cordis 是所有包的 peerDependency，会随 harness 发布，rescope 防止 registry 抢注），保留上游版本号与 MIT LICENSE。</li>
+      <li><span class="path">vendor/README.md</span> 记录 <b>18 条本地修改</b>（fiber.ts 生命周期加固、事务化 Loader/Include 等）；同步流程 5 步（记 SHA → 覆盖 → 重放修改 → 更新 manifest → test+build）。</li>
+      <li><span class="path">verify-vendored-links</span> 门禁保证解析到 workspace link 而非 registry；<span class="path">linkWorkspacePackages:true</span> 使上游 semver 解析到本地固定源。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 5 核心执行链 ================= -->
+<section id="core">
+  <h2>五、核心执行链（core 组，8 包）</h2>
+  <div class="card">
+    <table>
+      <tr><th style="width:22%">包</th><th style="width:24%">ctx key</th><th>职责</th></tr>
+      <tr><td>scope</td><td>—</td><td>作用域注册与事件路由基座</td></tr>
+      <tr><td>session</td><td><span class="path">ctx.sessions</span></td><td>append-only 事件日志词汇（SessionEventMap，10 个核心事件）</td></tr>
+      <tr><td>system-prompt</td><td><span class="path">ctx.systemPrompt</span></td><td>分层提示词组装</td></tr>
+      <tr><td>tools</td><td><span class="path">ctx.tools</span></td><td>工具注册表 + 守护式执行管线</td></tr>
+      <tr><td>agent</td><td><span class="path">ctx.agents</span></td><td>Agent 契约与注册表（AsyncLocalStorage 归因 initiator）</td></tr>
+      <tr><td>agent-loop</td><td><span class="path">ctx.agentLoop</span></td><td>默认 loop 实现（ReactLoopAgent，可整体替换）</td></tr>
+      <tr><td>agent-default-model</td><td>—</td><td>部署级默认模型</td></tr>
+      <tr><td>agent-tool-presentation</td><td>—</td><td>preset 级 PTC/native 工具展示选择器</td></tr>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">5.1 系统提示词组装</h3>
+      <ul class="b">
+        <li>section（有序命名、重名抛错、scoped 遮蔽 global）/ context（动态上下文）/ variable（严格插值，未知引用抛错）/ tools provider 四类注册，全部经 Cordis effect 管理。</li>
+        <li>排序用稀疏整数位（HARNESS_IDENTITY=-1000 … STRUCTURED_OUTPUT=9900）；<span class="path">complete:true</span> section 可整体替换 preset 提示词。</li>
+        <li>渲染结果写入 <span class="path">request/header</span> 事件（model-visible ⟺ logged）；动态 context 物化为持久 user 消息快照，参与重放与压缩。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">5.2 工具执行管线</h3>
+      <div class="diagram" style="padding:16px">
+        <div class="items" style="display:block;font-size:12.5px;line-height:2.1">
+          <span class="it">参数 schema 校验（execute 前自动类型化）</span><br>
+          → <span class="it">tools/pre-execute：allow / deny / ask 审批</span><br>
+          → <span class="it">单调 ToolGuard（只可否决不可放行）</span><br>
+          → <span class="it">tools/execute around-dispatch（可换 deadline signal）</span><br>
+          → <span class="it">tools/post-execute：accept / replace / block / 附加上下文</span><br>
+          → <span class="it">finalizeContent → tools/result 观察</span>
+        </div>
+      </div>
+      <p class="small">Host presenter 必须是纯函数（无 I/O、无时钟），同一函数同时服务实时流与日志重放；结果卡片元数据持久化于 tool/result 的 meta 字段。</p>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">5.3 上下文压缩（compaction）</h3>
+    <ul class="b">
+      <li>三条路径：<b>压力触发</b>（默认 thresholdRatio 0.8 开始压缩、retainRatio 0.16 保留尾部）、<b>上下文溢出恢复</b>（agent/request-error 后压缩并从新 surface 重试）、<b>/compact 手动命令</b>（busy 时拒绝、排队 prompt FIFO 执行）。</li>
+      <li>替换实现为 surface 级 <span class="path">{op:'replace', start, end}</span>，两端必须 tool-pairing 平衡；被遮蔽节点记入 sourceEventSeqs，replaceGeneration 递增——原始事件永不删除，重放可完整还原。</li>
+      <li>配套 <span class="path">compaction-tool-result-pruner</span>：先裁 oversized 工具输出，可能免去整段总结。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 6 能力矩阵 ================= -->
+<section id="capabilities">
+  <h2>六、能力接缝矩阵</h2>
+  <div class="card">
+    <p class="small" style="margin-bottom:6px">下表汇总各能力接缝的三角色构成（Definition ctx key → Providers → Consumers）与关键设计点。</p>
+    <div class="tbl-scroll">
+    <table>
+      <tr><th style="width:12%">能力</th><th style="width:14%">ctx key</th><th style="width:30%">Providers</th><th style="width:18%">Consumers（模型工具）</th><th>关键设计点</th></tr>
+      <tr><td>Shell</td><td><span class="path">ctx.shell</span></td><td>bash-local、pwsh-local、bash-sandbox、pwsh-sandbox、persistent 变体</td><td>tool-bash / tool-pwsh（含 persistent）</td><td>request→resolve()→Spec 全显式；超时/中止互斥归类；沙箱升级梯子</td></tr>
+      <tr><td>Subprocess</td><td><span class="path">ctx.subprocess</span></td><td>subprocess-local、subprocess-e2b</td><td>（基础设施，被 shell/LSP/terminal 复用）</td><td>detached 进程树；树级 SIGTERM→grace→SIGKILL；环境清洗（KEY/PASSWORD/SECRET/TOKEN）</td></tr>
+      <tr><td>Terminal</td><td><span class="path">ctx.terminals</span></td><td>terminal-bash（node-pty）</td><td>terminal_open/send/read/signal/close/list（6 工具）</td><td>owner 严格隔离（FOREIGN_SESSION）；等待式清理；受控提示符识别（dsh&gt; ）</td></tr>
+      <tr><td>文件系统</td><td><span class="path">ctx.fs</span></td><td>fs-local、fs-sandbox、fs-e2b</td><td>tool-fs 族（read/write/edit 等）</td><td>不透明 target + 版本令牌 CAS；read-before-edit 策略为纯事件插件；TOCTOU 防护</td></tr>
+      <tr><td>沙箱</td><td><span class="path">ctx.sandbox</span></td><td>sandbox-local（bwrap/landlock/seatbelt/ACL 链）、sandbox-windows-acl</td><td>（被 shell/fs 消费）</td><td>三模式 read-only / workspace-write / danger-full-access；无法强制时 fail-closed</td></tr>
+      <tr><td>E2B 云沙箱</td><td><span class="path">ctx.e2b</span></td><td>e2b、fs-e2b、subprocess-e2b</td><td>（复用上层全部工具）</td><td>POC 定位，默认不启用；执行世界整体远置，上层工具零改动</td></tr>
+      <tr><td>子代理</td><td><span class="path">ctx.subagents</span></td><td>spawn、fork、acp、codex、claude-code、dsh-sdk（6 provider）</td><td>tool-subagent、subagent-control（send_message/interrupt/list）、report</td><td>深度限制默认 3；结果 stopReason 五值封闭；可继续 child 走 inbox FIFO</td></tr>
+      <tr><td>工作流</td><td><span class="path">ctx.workflowEngine</span></td><td>workflow-worker-thread（worker + vm realm）</td><td>tool-workflow、tool-ralph（固定循环脚本）</td><td>脚本经 callId RPC 回宿主起 child；隔离是事件循环级而非安全边界；maxResultChars 50K</td></tr>
+      <tr><td>技能</td><td><span class="path">ctx.skills</span></td><td>skill-filesystem（chokidar 热刷新）</td><td>tool-skill（skill 工具 + /name 手势）</td><td>rank 低者胜（project 100 &lt; bundled 600）；目录以 system-reminder 增量发布</td></tr>
+      <tr><td>Web</td><td><span class="path">ctx.web</span></td><td>search：exa / perplexity / deepseek；fetch：http（防 DNS rebinding）</td><td>web_search / web_fetch</td><td>外部内容强制标注不可信（EXTERNAL_WEB_CONTENT_NOTICE）；跨源重定向拒绝</td></tr>
+      <tr><td>LSP</td><td><span class="path">ctx.lsp</span></td><td>lsp-stdio（每 workspace 单飞 server）</td><td>tool-lsp（4 只读操作）</td><td>诊断推送被 MVP host 显式忽略；模型仅可按需拉取；消息 16MB 上限</td></tr>
+      <tr><td>LLM</td><td><span class="path">ctx.llm</span></td><td>llm-deepseek（直连）、llm-pi-ai（OpenAI 兼容/OAuth）</td><td>（被 agent-loop/compaction 消费）</td><td>StreamChunk 协议（block-start/delta/end/usage/finish）；稳定错误码；计量从日志 replay fold</td></tr>
+      <tr><td>动态插件</td><td><span class="path">ctx.dynamicCordisRunner</span></td><td>cordis-host-runner（node:vm）、cordis-client-runner</td><td>cordis_define/run/stop/undefine + 3 只读 inspect 工具</td><td>定义仅存内存、重启即清；vm 隔离 globals 但<b>不是安全边界</b>（等同 bash 权限）</td></tr>
+      <tr><td>Webhook</td><td><span class="path">ctx.webhookRuntime</span></td><td>webhook-github（HMAC-SHA256 验签）</td><td>—（入站触发 session）</td><td>fire-and-forget：无队列/重放/去重；202 即内存 dispatch</td></tr>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 7 数据与会话 ================= -->
+<section id="data">
+  <h2>七、数据平面：会话、状态与设置</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">7.1 会话持久化</h3>
+      <ul class="b">
+        <li>唯一事实源 = <b>append-only SessionEvent 日志</b>；JSONL 后端默认（Zstandard 校验帧 + chunk 打包），SQLite 为 opt-in 单库（schema 18，单调 SCHEMA_VERSION，无迁移）。</li>
+        <li><b>读取侧 fail-closed：</b>构建不认识的任何事件类型（当前词汇表 48 个类型）拒绝重建日志并给出诊断（含 "newer harness" 方向提示），绝不静默跳过。</li>
+        <li>崩溃恢复不截断：为未应答调用补合成 tool/result（TOOL_NOT_STARTED / TOOL_OUTCOME_UNKNOWN），只丢弃未写全的 torn tail。</li>
+        <li>投影（projection）单元 = key + stateSchema + 同步 apply；<span class="path">session-projection-cache</span> 持久化 checkpoint 使冷读免全量回放。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">7.2 设置 / 凭证 / 身份</h3>
+      <ul class="b">
+        <li><b>settings：</b>命名空间 + 三层解析（schema 默认 &lt; 组合 base &lt; user 文档）；YAML 热编辑保注释、跨进程写锁、原子替换；秘密字段 describe 可剥离。</li>
+        <li><b>credentials：</b>密钥从配置剥离为按名引用；解析顺序：启动环境快照 &gt; 存储文件（唯一可写层）&gt; 项目 .env &gt; home .env。</li>
+        <li><b>identity：</b>纯随机 UUID（crypto.randomUUID，绝不派生自机器信息），用于 OTel user.id 与 DeepSeek 请求头。</li>
+        <li><b>遥测：</b>部署装且仅装一个后端（shipped 为 OTel；FULL / FEEDBACK_ONLY / DISABLED 三模式）；每条记录过 redaction waterfall，throwing 监听者 fail-closed 扣留。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">7.3 日志态产品包（todo / plan）</h3>
+    <ul class="b">
+      <li><b>todo：</b>todo_write 工具每次提交整表快照（last-write-wins），单 owner 归属调用 agent；下一 turn 开始清空 standing plan（turn/end 保留已完成项）。</li>
+      <li><b>plan mode：</b>log-only 整值 <span class="path">plan/mode</span> 事件；<b>引导而非限制</b>——所有工具保持可用；exit_plan_mode 审批走 user-questions 的 plan-review intent；无问答通道时 fail-closed，/plan off 是手动出口。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 8 交互审批 ================= -->
+<section id="interaction">
+  <h2>八、人机协作平面：命令、审批与防护</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">8.1 审批模型（fail-closed）</h3>
+      <ul class="b">
+        <li><span class="path">ctx.approval</span>：一次性 allow/reject 审批；结果四值封闭 <b>allowed-once / rejected / cancelled / unavailable</b>——缺 answerer、非 owner、抛错一律 fail-closed 到 unavailable。</li>
+        <li>策略 <span class="path">ask</span>（默认）| <span class="path">never</span>（服务内确定性拒绝，prepend 监听者也无法绕过——headless/CI 立场）。</li>
+        <li>审计为 log-only 事件对 <span class="path">approval/asked</span> + <span class="path">approval/decided</span>（invariant 校验配对），不进模型上下文。</li>
+        <li><b>permission-presets：</b>捆绑 sandbox 模式 + 审批策略两个旋钮（默认 workspace-write+ask）；自身不做 enforcement，挂载要求 confining bash executor + approval service 同时在场。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">8.2 问答与命令（独立通道）</h3>
+      <ul class="b">
+        <li><b>user-questions：</b>通用问答 waterfall，schema 带 intent（如 plan-review）；被父代理拥有的子 agent 不可发起（DELEGATED_CALLER），须把未决问题写进最终结果。</li>
+        <li><b>tool-ask-user：</b>把问答暴露为模型工具，答案以 JSON 文本回流，不改 loop 机制。</li>
+        <li><b>commands：</b>slash 命令注册表，无模型往返直接执行；agent-scoped 可遮蔽全局同名；每次 run 记入会话日志。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">8.3 防护插件（guard 家族）</h3>
+    <table>
+      <tr><th style="width:24%">插件</th><th>行为</th></tr>
+      <tr><td>repeat-tool-reminder</td><td>advisory never veto：检测（工具名 + 规范化参数）完全相同的连续重复调用，第 <b>3/5/8</b> 次注入提醒（合成 user 消息，可从日志重建）；新 user prompt 清链</td></tr>
+      <tr><td>tool-call-timeout-policy</td><td>协作式 deadline：只对自报 <span class="path">timeoutMs</span> 的工具生效（内置 bash/read 等不触碰）；超时替换为 TOOL_TIMEOUT 错误结果；<b>不硬杀</b>——工具忽略 signal 则等到自然 settle</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= 9 集成 ================= -->
+<section id="integration">
+  <h2>九、集成接口与外部协议</h2>
+  <div class="card">
+    <h3 style="margin-top:0">9.1 五种应用形态（transport 无关）</h3>
+    <table>
+      <tr><th style="width:16%">形态</th><th style="width:22%">协议/入口</th><th>定位</th></tr>
+      <tr><td>Web GUI</td><td>127.0.0.1:3080（client 组 43 包）</td><td>默认交互界面，UI 文案 locale-owned（i18n 门禁强制）</td></tr>
+      <tr><td>Headless</td><td><span class="path">pnpm dsh --profile headless "task"</span></td><td>一次性任务 / CI</td></tr>
+      <tr><td>TS SDK</td><td>换行分隔 JSON-RPC 2.0 over stdio</td><td>spawn <span class="path">dsh --profile sdk</span>，run() 拥有 receipt→idle 事件循环，返回 RunResult</td></tr>
+      <tr><td>Python SDK</td><td>同协议镜像 + <b>bundled runtime wheel</b></td><td>打包完整 dsh CLI + Node 依赖为平台可执行（Linux x64/arm64、macOS arm64、Windows x64），无需系统 Node</td></tr>
+      <tr><td>ACP</td><td>Agent Client Protocol v1 over stdio</td><td>面向自动化（进程外 subagent、测试 runner）；每 session 单在途 prompt、admission 时 pin provider/model</td></tr>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">9.2 Typert RPC（自研类型化 RPC）</h3>
+      <ul class="b">
+        <li>构建期 generator 把 TS 源类型编译为编译器无关 TypeGraph，发射 Zod v4 schema + 反射工件（tsdown 插件集成）。</li>
+        <li>registry 原子注册（整体落地或拒绝）；loader 在 Cordis Loader 组合中自动注册/撤回 host 工件。</li>
+        <li>gateway 校验具名参数、解析对象身份、调用业务方法；WebSocket <span class="path">/api/remote.mux</span> 多路复用（30s 心跳）+ 重连补页 gap repair。</li>
+        <li>Client 面事件经<b>白名单</b>（API_REMOTE_FORWARDED_EVENTS）双面共读一份声明防止漂移。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">9.3 与 Claude Code / Codex 互操作</h3>
+      <ul class="b">
+        <li><b>hooks 桥：</b>定位 "compatibility adapter, not a power tool"——既有 shell command hooks 原样生效。Claude Code 支持 7/30 事件、Codex 支持 5/10；exit 2 = block，deny &gt; ask &gt; allow 合并。已知缺口：分层配置发现、live reload、并发执行未实现。</li>
+        <li><b>子代理 provider：</b>subagent-claude-code、subagent-codex 把两者作为 subagent 后端（依赖 @anthropic-ai/claude-agent-sdk 0.3.241、@openai/codex 0.149.1）。</li>
+      </ul>
+      <h4>Preset 每会话组合</h4>
+      <ul class="b">
+        <li>preset = 含单个 <span class="path">agent.cordis.yml</span> 的目录；roster 为每 preset 建 standing mount，一个进程并行运行多种组合的 agent。</li>
+        <li>rank：内置（standard/minimal/ptc/cordis，system trust）&gt; 配置 roots &gt; user 目录；会话仅在全空时可切 preset；<span class="path">!!js</span> 表达式支持条件组合。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10 LLM ================= -->
+<section id="llm">
+  <h2>十、LLM 层与模型路由</h2>
+  <div class="card">
+    <ul class="b">
+      <li><b>双 DeepSeek adapter 可并存：</b>直连 <span class="path">llm-deepseek</span>（deepseek-official 路由）与 pi-ai 库版 <span class="path">llm-pi-ai</span>（OpenAI 兼容网关 + OAuth login）。</li>
+      <li>默认模型：deepseek-v4-flash / deepseek-v4-pro / deepseek-v4-flash-vision-exp，各 <b>1M context</b>；reasoningEffort off/low/high/max（off 序列化为 thinking.type:disabled）。</li>
+      <li>配置热生效：每请求经 settings 命名空间重读 adapter options（无重启换端点）；DEEPSEEK_API_KEY 经 credentials 四层链解析，永不转发进沙箱。</li>
+      <li><b>重试：</b>llm-retry 在 agent/request-error 开放扩展点执行 adapter 自带 retryPolicy（normal/always 两模式），先写 llm/retry 日志事件再退避。</li>
+      <li><b>计量：</b>token-meter 从持久日志 replay fold 得出 tokenUsage/contextPressure/contextBreakdown 投影；缓存读写 token 单独计数。</li>
+      <li><b>真实 API e2e：</b>无 DEEPSEEK_API_KEY 自动整组 skip；文档明确立场"我们是 DeepSeek，不省真实 API 测试"。</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ================= 11 安全 ================= -->
+<section id="security">
+  <h2>十一、安全模型</h2>
+  <div class="card">
+    <h3 style="margin-top:0">11.1 纵深防御栈</h3>
+    <table>
+      <tr><th style="width:18%">层</th><th>机制</th></tr>
+      <tr><td>内核围栏（进程）</td><td>sandbox-local 按平台探测链选后端：<b>Linux：bwrap → landlock</b>（bwrap 剖面更接近承诺所以优先）；<b>macOS：Seatbelt</b>（sandbox-exec）；<b>Windows：ACL 受限令牌</b>（CreateProcessAsUserW + kill-on-close Job）。无法强制时 fail-closed 报 SANDBOX_UNAVAILABLE，<b>绝不裸跑</b></td></tr>
+      <tr><td>原生 Landlock 启动器</td><td><span class="path">native/landlock-run</span>：约 300 行 C11（musl 静态链接），self-restrict-then-exec——先给自身装 ruleset（no_new_privs，跨 execve 继承）再 exec 目标，host 不受限；fail-closed 退出码 125；故意无安装期编译 fallback；CLI 契约钉死并有三道发布门</td></tr>
+      <tr><td>用户态围栏（fs 缝）</td><td>fs-sandbox：workspace-write 模式下重新 canonicalize fresh target 再交底层写（消除 check-here-write-there TOCTOU）；dev/ino 身份回退兼容 8.3 名；<b>自我定位是 containment 而非安全边界</b>，内核级隔离归沙箱执行器</td></tr>
+      <tr><td>审批</td><td>沙箱升级梯子（read-only→workspace-write→danger-full-access）：模型可用 sandbox_permissions + justification 一次性重试，先经 ctx.approval 用户批准（allowed-once 才授予本次）</td></tr>
+      <tr><td>环境卫生</td><td>子进程环境按 <span class="path">/KEY|PASSWORD|SECRET|TOKEN/i</span> 与 DSH_ 前缀清洗；spill 目录 0700 私有 mkdtemp；settings/凭证文件 0600</td></tr>
+    </table>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">11.2 动态执行隔离</h3>
+      <ul class="b">
+        <li>workflow 脚本：worker thread + vm realm，仅放行 plain JSON 跨 realm；meta 绝不在宿主 eval。</li>
+        <li>动态插件：node:vm 沙箱、Node globals 缺失或重定向到 Cordis 服务 façade；README 明言<b>"vm 隔离 globals 但不是安全边界——视同 bash 权限"</b>；浏览器侧动态包必须人工批准。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">11.3 维护者侧规则（与产品沙箱严格区分）</h3>
+      <ul class="b">
+        <li>Host sandbox failures 规则：必需命令被 host 沙箱挡住时，用<b>最窄的 host 提权原样重试</b>，必须提供 sandbox 证据，绝不借机绕过测试失败或产品沙箱。</li>
+        <li>Windows 是一等平台：PR 必经"Wine 里跑真 win-x64 Node"阻塞门 + 真实 Windows runner 三条 lane（build/native tests/observational）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 12 工程体系 ================= -->
+<section id="engineering">
+  <h2>十二、工程与质量体系</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">12.1 测试策略（六层）</h3>
+      <table>
+        <tr><th style="width:34%">层</th><th>要点</th></tr>
+        <tr><td>Unit</td><td>vitest，测试与代码同目录</td></tr>
+        <tr><td><b>Coverage gate</b></td><td><b>packages/*/*/src 逐文件 100%</b>，未覆盖行视为待删死代码</td></tr>
+        <tr><td>Real-API e2e</td><td>无 key 自动 skip；最高价值场景 = boot shipped profile 发一条 prompt 的 smoke</td></tr>
+        <tr><td>Expected</td><td>owner 本地进程期望</td></tr>
+        <tr><td>Snapshot</td><td>129 场景 × 4 树（session/sdk/acp/web）；统一经 dsh CLI + shipped profile 回放，<b>禁止新增入口</b>；fixtures 跨 macOS/Linux，"fix fixtures, not normalizers"</td></tr>
+        <tr><td>Web 浏览器快照</td><td>Linux PR 必过门禁，CI 强制只读 replay 模式</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">12.2 构建与 CI/CD</h3>
+      <ul class="b">
+        <li>两段式构建：tsc emit lib/types 声明 → tsdown 打包运行时；<b>host/client 双 face</b> 聚合 program（同 key Context declaration merge 冲突所致）。</li>
+        <li><b>source-launch contract：</b>dsh 源码启动走 tsx ESM-only hook，可达模块必须全 ESM；Source plane（静态门禁解析 src）与 artifact plane（消费 lib/）从不混用。</li>
+        <li>19 个 CI workflow（3,225 行）：Linux 主 lane、node 22.19/26 兼容矩阵、Wine Windows 阻塞门、真实 Windows 三 lane、Python 3.10、landlock-run 独立矩阵。</li>
+        <li><b>发布双工作流：</b>PR 内无凭证 pack 彩排证明可发布集完整；发布仅限手动 workflow_dispatch（"发布必须显式、经审、绝不出现在 PR check 里"）。</li>
+        <li>Stacked PR 用 GitHub 原生 stack 对象（gh stack merge/sync）；rewrite 只许 --force-with-lease。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">12.3 静态门禁体系（约 75+ 叶子门禁）</h3>
+      <ul class="b">
+        <li><b>43 个 verify-*</b> 脚本：cordis-config（bare 插件必须在 manifest dependencies）、client-ui-i18n（拒绝硬编码文案）、export-jsdoc、doc-budgets、application-entrypoints、built-package-invariants、runtime-closure 等。</li>
+        <li>hygiene 族：knip（死代码）+ publint + workspace constraints（experimental 隔离机械强制）+ NodeNext consumer check。</li>
+        <li>duplication：jscpd（minTokens 60）跨文件克隆检测，与 oxlint 合成 lint gate。</li>
+        <li>全部收敛到 <span class="path">scripts/run-gates.ts</span>（16 种 mode），包脚本只留聚合名。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">12.4 文档与决策记录体系</h3>
+      <ul class="b">
+        <li><b>Agent Notes：</b>非平凡改动必须同 PR 附决策记录（强制 Problem/Decision/<b>Alternatives considered</b>/Consequences 骨架）；现状：implemented 606 / archived 170 / proposed 26 / rejected 10；归档后永久冻结。</li>
+        <li><b>docs tier 制：</b>tutorial/reference 分类、"one home per fact"、每段一物理行、fenced ts 块必须可编译、字数预算机器强制（如根 AGENTS.md ≤1950 词）。</li>
+        <li><b>双语三件套：</b>*.md + *.zh.md + *.i18n.yaml（记录 blob hash 配对，pre-commit + doc-sync 双层校验）。</li>
+        <li><b>website/ 是纯投影：</b>VitePress 从 docs/ 投影双语站点，禁止内容复制树；输出 llms.txt 与每页 .md 孪生供 LLM 消费。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 13 活跃度 ================= -->
+<section id="activity">
+  <h2>十三、社区活跃度与版本节奏</h2>
+  <div class="card">
+    <div class="grid3">
+      <div>
+        <h4 style="margin-top:0">项目年龄</h4>
+        <p><b style="font-size:22px;color:var(--blue-dk)">80 天</b><br><span class="small">2026-06-10 → 2026-08-28</span></p>
+      </div>
+      <div>
+        <h4 style="margin-top:0">日均产出</h4>
+        <p><b style="font-size:22px;color:var(--blue-dk)">≈178 commits/天</b><br><span class="small">14,226 commits · 单日峰值 219</span></p>
+      </div>
+      <div>
+        <h4 style="margin-top:0">PR 吞吐</h4>
+        <p><b style="font-size:22px;color:var(--blue-dk)">1,203 已合并</b><br><span class="small">编号至 #3248，几乎全部 PR 被 merge</span></p>
+      </div>
+    </div>
+    <h3>版本节奏</h3>
+    <table>
+      <tr><th style="width:26%">阶段</th><th style="width:24%">时间</th><th>说明</th></tr>
+      <tr><td>0.1.0-rc.1 → rc.8</td><td>08-13 → 08-19</td><td>首个 release candidate 序列（8 天 8 个 rc）</td></tr>
+      <tr><td>0.1.1-rc.1 / rc.2</td><td>08-21</td><td>补丁候选</td></tr>
+      <tr><td><b>0.1.2-alpha.1</b>（当前）</td><td>08-28</td><td>回落 alpha——主动声明"foundation over blast radius"，明确放弃短期稳定承诺</td></tr>
+    </table>
+    <div class="note">项目完全由 DeepSeek 内部团队主导（46 位贡献者中多位 @deepseek.com 邮箱，Top1 贡献者占非 merge 提交 17%），尚未观察到外部社区贡献迹象；提交信息、label 分类、PR 流程规范化程度接近一线开源基金会项目水准。</div>
+  </div>
+</section>
+
+<!-- ================= 14 风险 ================= -->
+<section id="risk">
+  <h2>十四、成熟度评估与风险矩阵</h2>
+  <div class="card">
+    <h3 style="margin-top:0">14.1 成熟度评分（调研组评估，满分 5）</h3>
+    <table>
+      <tr><th style="width:20%">维度</th><th style="width:44%">评分</th><th>依据</th></tr>
+      <tr><td>架构设计</td><td><div class="score"><div class="bar"><i style="width:95%"></i></div><span class="pct">4.8 / 5</span></div></td><td>接缝三角色完备、transport 无关、扩展点文档化、无可变全局</td></tr>
+      <tr><td>代码质量机制</td><td><div class="score"><div class="bar"><i style="width:95%"></i></div><span class="pct">4.8 / 5</span></div></td><td>strict 全开、逐文件 100% 覆盖、jscpd、约 75+ 静态门禁</td></tr>
+      <tr><td>文档</td><td><div class="score"><div class="bar"><i style="width:90%"></i></div><span class="pct">4.5 / 5</span></div></td><td>双语、机器校验、决策记录 606 篇；面向贡献者优于面向最终用户</td></tr>
+      <tr><td>流程/CI</td><td><div class="score"><div class="bar"><i style="width:90%"></i></div><span class="pct">4.5 / 5</span></div></td><td>19 workflow、发布彩排、stack 纪律、三平台矩阵</td></tr>
+      <tr><td>发布成熟度</td><td><div class="score"><div class="bar"><i style="width:40%"></i></div><span class="pct">2.0 / 5</span></div></td><td>0.1.2-alpha.1；无兼容承诺；API/盘上格式随时可变（有意为之）</td></tr>
+      <tr><td>生态与采用</td><td><div class="score"><div class="bar"><i style="width:30%"></i></div><span class="pct">1.5 / 5</span></div></td><td>内部主导、无外部生产案例、依赖 DeepSeek 模型生态</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">14.2 风险矩阵</h3>
+    <div class="tbl-scroll">
+    <table>
+      <tr><th style="width:24%">风险</th><th style="width:10%">等级</th><th style="width:12%">类别</th><th>说明与缓解现状</th></tr>
+      <tr><td>上游漂移检测缺位</td><td><span class="b b-dgr">高</span></td><td>供应链</td><td>cordis 全家 vendor 进仓库并有 18 条本地修改，但"supply-chain and vendor-drift"仍为 proposed 状态，nightly drift check / 审计扫描未落地——上游安全补丁可能被长期错过</td></tr>
+      <tr><td>无兼容承诺</td><td><span class="b b-warn">中</span></td><td>产品</td><td>首个 tagged release 前可自由重命名/重打包，SESSION_FORMAT_VERSION=0 无迁移承诺；<b>有意决策而非疏漏</b>，采用方须锁定 commit</td></tr>
+      <tr><td>模型供应商绑定</td><td><span class="b b-warn">中</span></td><td>战略</td><td>默认模型/请求扩展（dsh_session_log、plugin inventory）/e2e 全部围绕 DeepSeek API；pi-ai adapter 提供一定解耦但非主路径</td></tr>
+      <tr><td>80 天高速开发的技术债</td><td><span class="b b-warn">中</span></td><td>工程</td><td>月均 7 千提交节奏下， renaming ledger 中已有 stale FIXME（如 timeout-policy 内 dsh-timeout-guard 旧名）；100% 覆盖门禁可部分对冲</td></tr>
+      <tr><td>动态执行隔离有限</td><td><span class="b b-warn">中</span></td><td>安全</td><td>vm/workflow 隔离明确声明"非安全边界"；E2B 云沙箱为 POC、默认不启用——不可信代码场景缺少强隔离选项</td></tr>
+      <tr><td>外部依赖面</td><td><span class="b b-ok">低</span></td><td>依赖</td><td>E2B 可选、node-pty/koffi 等逐包批准构建；零依赖 util 族策略控制了传染面</td></tr>
+      <tr><td>互操作桥完整度</td><td><span class="b b-ok">低</span></td><td>集成</td><td>hooks 桥仅覆盖部分事件（7/30、5/10）且缺 live reload，定位即为兼容层而非完备实现</td></tr>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 15 对比 ================= -->
+<section id="compare">
+  <h2>十五、同类产品对比</h2>
+  <div class="card">
+    <div class="tbl-scroll">
+    <table>
+      <tr><th style="width:16%">维度</th><th>DeepSeek Harness</th><th>Claude Code</th><th>Codex CLI</th><th>OpenHands</th><th>Aider</th></tr>
+      <tr><td>开源</td><td>MIT，全开源</td><td>客户端源码可见，产品闭源</td><td>部分开源</td><td>MIT</td><td>Apache-2.0</td></tr>
+      <tr><td>架构</td><td>all-plugin 微内核（247 包，Cordis DI）</td><td>单体 CLI</td><td>单体 CLI</td><td>单体 Web 应用 + 沙箱容器</td><td>单进程脚本化 CLI</td></tr>
+      <tr><td>扩展模型</td><td>声明式 patch 层 + 类型化事件扩展点 + 动态插件</td><td>hooks / skills / MCP</td><td>hooks / MCP</td><td>Agent 抽象类继承</td><td>有限</td></tr>
+      <tr><td>模型支持</td><td>DeepSeek 优先（双 adapter），OpenAI 兼容经 pi-ai</td><td>Anthropic</td><td>OpenAI</td><td>多模型</td><td>多模型</td></tr>
+      <tr><td>沙箱</td><td>bwrap/Landlock/Seatbelt/ACL 内核链 + E2B 云（POC）</td><td>容器/沙箱模式</td><td>容器/沙箱模式</td><td>Docker 容器</td><td>无</td></tr>
+      <tr><td>应用形态</td><td>Web / Headless / TS SDK / Python SDK / ACP 五形态同核</td><td>CLI + IDE 插件</td><td>CLI + IDE</td><td>Web</td><td>CLI</td></tr>
+      <tr><td>互操作</td><td><b>可被 Claude Code/Codex hooks 桥接，也可把它们作为子代理</b></td><td>MCP 生态</td><td>MCP 生态</td><td>—</td><td>—</td></tr>
+      <tr><td>工程纪律</td><td>100% 逐文件覆盖、606 篇决策记录、约 75+ 门禁</td><td>不公开</td><td>不公开</td><td>常规</td><td>常规</td></tr>
+      <tr><td>成熟度</td><td>alpha（80 天）</td><td>GA</td><td>GA/preview</td><td>较成熟</td><td>成熟</td></tr>
+    </table>
+    </div>
+    <div class="warn-box"><b>定位结论：</b>DeepSeek Harness 不是又一个 CLI 工具，而是"Agent 时代的框架层"——更接近"可组合的 Agent OS 内核 + 参考实现"。其差异化在于：组合式 patch 配置、会话日志即唯一事实源的可重放架构、五形态共享同一插件树、以及罕见的机器强制工程纪律。</div>
+  </div>
+</section>
+
+<!-- ================= 16 结论 ================= -->
+<section id="conclusion">
+  <h2>十六、结论与建议</h2>
+  <div class="grid3">
+    <div class="card">
+      <h4 style="margin-top:0">对技术评估者</h4>
+      <ul class="b">
+        <li>架构参考价值极高：能力接缝三角色、fail-closed 会话词汇、model-visible⟺logged 等模式可直接借鉴到自研平台。</li>
+        <li>如需采用：锁定具体 commit，预期 breaking change，关注 0.1.2 → 首个 tagged release 的路线图。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">对工程团队</h4>
+      <ul class="b">
+        <li>100% 逐文件覆盖 + 门禁矩阵是可复制的质量范式，但维护成本高，适合核心基础库而非业务代码。</li>
+        <li>Agent Notes 决策记录制度（强制 Alternatives considered）值得制度化推广。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">关键观察指标（未来 6 个月）</h4>
+      <ul class="b">
+        <li>是否落地 vendored 上游漂移检测（最大供应链敞口）。</li>
+        <li>首个 tagged stable release 与兼容承诺的边界划定。</li>
+        <li>E2B/远端沙箱是否从 POC 转正；外部贡献者是否出现。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 17 附录 ================= -->
+<section id="appendix">
+  <h2>附录 A · 调研方法与 50 轮调研域</h2>
+  <div class="card">
+    <p>本次调研采用 <b>10 个并行调研域 × 各 5 个专题 = 50 轮</b>的结构化方法，全部基于仓库静态代码与文档（快照 commit cd5ef81481，2026-08-28）。量化指标由脚本直接从 git 历史与文件系统采集。</p>
+    <table>
+      <tr><th style="width:14%">调研域</th><th>覆盖轮次与专题</th></tr>
+      <tr><td>A 基础与架构</td><td>1 项目定位与总体架构 · 2 Cordis 插件模型 · 3 启动与 profiles · 4 代码规模统计 · 5 工程约定体系</td></tr>
+      <tr><td>B 核心执行链</td><td>6 core 包群 · 7 系统提示词 · 8 工具系统 · 9 Agent Loop · 10 上下文压缩</td></tr>
+      <tr><td>C 执行类能力</td><td>11 shell · 12 subprocess · 13 终端持久会话 · 14 文件系统 · 15 E2B 云沙箱</td></tr>
+      <tr><td>D 扩展类能力</td><td>16 子代理 · 17 工作流 · 18 技能系统 · 19 Web 能力 · 20 LSP</td></tr>
+      <tr><td>E 会话与状态</td><td>21 会话持久化 · 22 todo/plan · 23 设置/身份/凭证 · 24 交互与审批 · 25 防护插件</td></tr>
+      <tr><td>F 集成与接口</td><td>26 API/网关 · 27 Typert · 28 TS SDK · 29 Python SDK · 30 ACP 与 webhook</td></tr>
+      <tr><td>G 模型与桥</td><td>31 LLM 能力 · 32 DeepSeek providers · 33 hooks 桥 · 34 preset 组合 · 35 动态插件</td></tr>
+      <tr><td>H 平台与安全</td><td>36 原生 Landlock · 37 安全模型 · 38 Windows 支持 · 39 context 插件 · 40 util/测试基建</td></tr>
+      <tr><td>I 质量与工程链</td><td>41 测试策略 · 42 构建工具链 · 43 CI/CD 与发布 · 44 质量门禁 · 45 git 历史与活跃度</td></tr>
+      <tr><td>J 文档与评估</td><td>46 文档体系 · 47 Agent Notes · 48 experimental 包 · 49 examples/agent-spine · 50 成熟度与风险评估</td></tr>
+    </table>
+    <h3>局限性声明</h3>
+    <ul class="b">
+      <li>本报告为静态代码调研，未执行长时负载测试、渗透测试或生产压测；性能结论不在覆盖范围内。</li>
+      <li>所有数字为调研时点（2026-08-29）快照；第 50 轮成熟度/竞品分析及 14.x 评分属调研组分析判断，已在文中标注，非仓库原文。</li>
+      <li>项目处于高速迭代期（日均 178 commits），结论时效性建议以 2–4 周为窗口复核。</li>
+    </ul>
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<footer>
+  <div class="inner">
+    <p><b>DeepSeek Harness 项目调研报告</b> · 2026-08-29 · 机密级别：内部使用</p>
+    <p style="margin-top:8px">调研方法：10 并行调研域 × 5 专题（50 轮）· 数据来源：仓库静态分析 + git 历史统计 · 快照：v0.1.2-alpha.1 (cd5ef81481)</p>
+    <p style="margin-top:8px" class="small">本报告由自动化调研流程生成，关键事实均溯源自代码与文档路径；分析判断章节已明确标注。</p>
+  </div>
+</footer>
+
+<button class="top-btn" id="topBtn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="回到顶部">↑</button>
+
+<script>
+const nav=document.querySelectorAll('.nav a');
+const secs=[...document.querySelectorAll('section[id]')];
+const io=new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    nav.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+e.target.id));
+  }});
+},{rootMargin:'-30% 0px -60% 0px'});
+secs.forEach(s=>io.observe(s));
+const btn=document.getElementById('topBtn');
+addEventListener('scroll',()=>btn.classList.toggle('show',scrollY>600),{passive:true});
+</script>
+</body>
+</html>
